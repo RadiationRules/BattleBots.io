@@ -1,258 +1,167 @@
-/* Reset */
-* {
-  margin: 0; padding: 0; box-sizing: border-box; user-select: none;
-}
-body, html {
-  width: 100%; height: 100%; overflow: hidden;
-  background: linear-gradient(45deg, #0a101f, #131c3c);
+/* style.css */
+
+body {
+  margin: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: white;
-}
-#gameCanvas {
-  display: block;
-  margin: 0 auto;
-  background: linear-gradient(135deg, #11152a, #1a2a57);
-  border-radius: 12px;
-  box-shadow:
-    0 0 15px #0af,
-    inset 0 0 60px #0af;
+  background: linear-gradient(135deg, #0d1117, #161b22);
+  color: #ccc;
+  overflow: hidden;
 }
 
-/* UI container */
-#ui {
+.menu {
   position: absolute;
-  top: 20px; left: 20px;
-  width: 360px;
-  color: #b8d0ff;
-  text-shadow: 0 0 8px #0099ff;
-  user-select:none;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #1f2937dd;
+  border-radius: 15px;
+  padding: 40px 60px;
+  text-align: center;
+  box-shadow: 0 0 15px #00d8ffaa;
+}
+
+.menu.visible {
+  display: block;
+}
+
+.menu input,
+.menu select {
+  width: 240px;
+  margin: 15px 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  font-size: 18px;
+  background: #111827;
+  color: #00d8ff;
+  outline: none;
+}
+
+.menu button {
+  margin-top: 20px;
+  background: #00d8ff;
+  color: #0d1117;
+  font-weight: bold;
+  font-size: 20px;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 25px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.menu button:hover {
+  background: #0090c5;
+}
+
+.hidden {
+  display: none;
+}
+
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #0a0f15;
+  overflow: hidden;
+}
+
+#game-canvas {
+  display: block;
+  background: linear-gradient(180deg, #1b263b 0%, #0a0f15 100%);
+  margin: 0 auto;
+  box-shadow: 0 0 20px #00d8ff;
+}
+
+#ui-overlay {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 350px;
+  color: #00d8ff;
   font-weight: 600;
+  user-select: none;
+}
+
+#health-bar {
+  width: 350px;
+  height: 25px;
+  background: #222;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 0 10px #00d8ffaa inset;
+  margin-bottom: 15px;
+}
+
+#health-fill {
+  height: 100%;
+  width: 100%;
+  background: #00ffea;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 15px #00fffbaa;
+}
+
+#scoreboard {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+#leaderboard {
+  background: #111a27cc;
+  border-radius: 15px;
+  padding: 15px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 0 15px #0090c5;
+  margin-bottom: 15px;
+}
+
+#leaderboard h3 {
+  margin: 0 0 10px;
+  color: #00d8ff;
+  font-weight: 700;
+}
+
+#leaderboard-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   font-size: 16px;
 }
-/* Leaderboard */
-#leaderboard {
-  background: rgba(10, 30, 70, 0.8);
-  padding: 16px;
-  border-radius: 14px;
-  margin-bottom: 20px;
-  box-shadow: 0 0 10px #0f7eff;
-}
-#leaderboard h3 {
-  margin-bottom: 10px;
-  font-size: 22px;
-  text-align: center;
-}
-#leaderboard ul {
-  list-style: none;
-}
-#leaderboard ul li {
-  padding: 8px 12px;
-  border-bottom: 1px solid #0070ff66;
-  font-size: 17px;
-  display: flex;
-  justify-content: space-between;
+
+#leaderboard-list li {
+  margin-bottom: 8px;
+  color: #80d8ff;
 }
 
-/* Upgrades Panel */
-#upgradesPanel {
-  background: rgba(10, 30, 70, 0.8);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 20px;
-  box-shadow: 0 0 12px #0f7eff;
+#upgrades-panel {
+  background: #111a27cc;
+  border-radius: 15px;
+  padding: 15px;
+  box-shadow: 0 0 15px #0090c5;
+  max-width: 350px;
 }
-#upgradesPanel h3 {
-  margin-bottom: 14px;
-  font-size: 22px;
-  text-align: center;
-}
-.upgrade {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-  font-size: 17px;
-  color: #b8d0ff;
-}
-.upgrade .buyBtn {
-  background: linear-gradient(145deg, #1a7eff, #0050aa);
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 14px;
-  cursor: pointer;
+
+#upgrades-panel h3 {
+  margin-top: 0;
+  color: #00d8ff;
   font-weight: 700;
-  transition: background 0.3s;
-  box-shadow:
-    0 4px 6px #004085aa,
-    inset 0 0 8px #39f;
-}
-.upgrade .buyBtn:hover {
-  background: linear-gradient(145deg, #0058cc, #003d7a);
-  box-shadow:
-    0 5px 12px #003366ff,
-    inset 0 0 12px #6ff;
+  margin-bottom: 15px;
 }
 
-/* Minimap */
-#minimap {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 200px;
-  height: 140px;
-  background: rgba(10, 30, 70, 0.9);
-  border: 2px solid #0057ffaa;
-  border-radius: 14px;
-  box-shadow: 0 0 15px #007fffbb;
-}
-
-/* Coins Display */
-#coinsDisplay {
-  font-size: 20px;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 18px;
-  text-shadow: 0 0 12px #ffd500cc;
-}
-
-/* Autofire Toggle */
-#autofireToggle {
-  font-size: 17px;
-  font-weight: 700;
-  text-align: center;
-  color: #55ff55;
-  user-select: none;
-  margin-bottom: 14px;
-  text-shadow: 0 0 6px #0f0;
-}
-
-/* Main menu overlay */
-#mainMenu {
-  position: fixed;
-  top: 0; left: 0; right:0; bottom: 0;
-  background: rgba(5, 10, 30, 0.97);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  z-index: 999;
-  color: #00aaff;
-  text-align: center;
-  backdrop-filter: blur(8px);
-}
-#mainMenu h1 {
-  font-size: 54px;
-  margin-bottom: 24px;
-  font-weight: 900;
-  text-shadow:
-    0 0 12px #00aaff,
-    0 0 18px #0099ff;
-}
-#mainMenu input[type="text"] {
-  font-size: 26px;
-  padding: 14px 20px;
-  border-radius: 18px;
+.upgrade-btn {
+  background: #005f8a;
   border: none;
-  outline: none;
-  width: 320px;
-  max-width: 90vw;
-  text-align: center;
-  margin-bottom: 26px;
-  box-shadow:
-    inset 0 0 12px #0ff,
-    0 0 12px #00aaff88;
-  background: #0a1f40;
-  color: #aafcff;
-  font-weight: 600;
-}
-#mainMenu input[type="text"]:focus {
-  background: #1263c8;
-  box-shadow:
-    inset 0 0 14px #35b0ff,
-    0 0 22px #35b0ffcc;
-  color: white;
-}
-#mainMenu button {
-  font-size: 26px;
-  padding: 14px 36px;
-  border-radius: 18px;
-  border: none;
-  background: linear-gradient(145deg, #00aaff, #0066cc);
-  color: white;
-  cursor: pointer;
-  font-weight: 900;
-  transition: background 0.3s;
-  box-shadow:
-    0 0 18px #00aaffcc,
-    inset 0 0 22px #0ff;
-}
-#mainMenu button:hover {
-  background: linear-gradient(145deg, #0077dd, #004f99);
-  box-shadow:
-    0 0 22px #0066ccff,
-    inset 0 0 26px #33caff;
-}
-
-/* In-game popup message box */
-#popupMessage {
-  position: fixed;
-  top: 30px; left: 50%; transform: translateX(-50%);
-  background: rgba(5,10,20,0.85);
-  border: 2px solid #00aaff;
-  border-radius: 16px;
-  padding: 22px 36px;
-  max-width: 80vw;
-  font-size: 22px;
-  color: #00ffff;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s ease;
-  z-index: 1000;
-  box-shadow:
-    0 0 20px #00d8ffbb,
-    inset 0 0 20px #00d8ff99;
-}
-#popupMessage.show {
-  opacity: 1;
-  pointer-events: auto;
-}
-#popupMessage button.closeBtn {
-  margin-left: 26px;
-  background: transparent;
-  border: none;
-  color: #00ffff;
-  font-size: 32px;
-  font-weight: 900;
-  cursor: pointer;
-  line-height: 1;
-  text-shadow: 0 0 8px #00ffffcc;
-  transition: color 0.3s;
-}
-#popupMessage button.closeBtn:hover {
-  color: #66ffff;
-}
-
-/* Debug overlay */
-#debugOverlay {
-  position: fixed;
-  bottom: 10px;
-  left: 10px;
-  background: rgba(0,0,0,0.7);
-  color: #0ff;
-  font-family: monospace;
-  font-size: 14px;
-  padding: 8px 12px;
   border-radius: 12px;
-  max-width: 300px;
-  user-select: none;
-  pointer-events: none;
-  box-shadow:
-    0 0 12px #00ffffaa,
-    inset 0 0 10px #00ffff88;
-  line-height: 1.2;
-  white-space: pre-wrap;
+  padding: 10px 20px;
+  margin: 6px 6px 6px 0;
+  font-size: 16px;
+  color: #00d8ff;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  box-shadow: 0 0 5px #007dbf;
+}
+
+.upgrade-btn:hover {
+  background: #008cdb;
 }

@@ -7,57 +7,44 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="gameCanvas" width="1200" height="800"></canvas>
-
-  <div id="ui">
-    <div id="leaderboard">
-      <h3>Leaderboard</h3>
-      <ul></ul>
-    </div>
-
-    <div id="upgradesPanel">
-      <h3>Upgrades</h3>
-      <div class="upgrade" data-upgrade="damage">
-        Damage: <span class="value">1</span>
-        <button class="buyBtn">Buy (5 coins)</button>
-      </div>
-      <div class="upgrade" data-upgrade="bulletSpeed">
-        Bullet Speed: <span class="value">1</span>
-        <button class="buyBtn">Buy (5 coins)</button>
-      </div>
-      <div class="upgrade" data-upgrade="health">
-        Health: <span class="value">100</span>
-        <button class="buyBtn">Buy (10 coins)</button>
-      </div>
-      <div class="upgrade" data-upgrade="regen">
-        Regen: <span class="value">0.01</span>
-        <button class="buyBtn">Buy (10 coins)</button>
-      </div>
-      <div class="upgrade" data-upgrade="reloadSpeed">
-        Reload Speed: <span class="value">300 ms</span>
-        <button class="buyBtn">Buy (10 coins)</button>
-      </div>
-    </div>
-
-    <div id="minimap"></div>
-    <div id="coinsDisplay">Coins: 0</div>
-    <div id="autofireToggle">Autofire: OFF (Press E)</div>
-  </div>
-
-  <div id="mainMenu">
+  <div id="main-menu" class="menu visible">
     <h1>BattleBots.io</h1>
-    <input id="playerNameInput" type="text" placeholder="Enter your BattleBot name" maxlength="15" autocomplete="off" />
-    <button id="startGameBtn">Play</button>
+    <input id="player-name" placeholder="Enter your name" maxlength="12" />
+    <select id="game-mode-select">
+      <option value="Free For All">Free For All</option>
+      <option value="Team Deathmatch">Team Deathmatch</option>
+    </select>
+    <div id="team-select-container" style="display:none;">
+      <label><input type="radio" name="team" value="red" checked /> Red Team</label>
+      <label><input type="radio" name="team" value="blue" /> Blue Team</label>
+    </div>
+    <button id="play-button">Play</button>
   </div>
 
-  <div id="popupMessage">
-    <span id="popupText"></span>
-    <button class="closeBtn" title="Close">&times;</button>
+  <div id="game-container" class="hidden">
+    <canvas id="game-canvas" width="1600" height="900"></canvas>
+
+    <div id="ui-overlay">
+      <div id="health-bar">
+        <div id="health-fill"></div>
+      </div>
+      <div id="scoreboard">Score: 0 | Coins: 0</div>
+      <div id="leaderboard">
+        <h3>Leaderboard</h3>
+        <ul id="leaderboard-list"></ul>
+      </div>
+      <div id="upgrades-panel">
+        <h3>Upgrades</h3>
+        <button class="upgrade-btn" data-upgrade="damage">Damage</button>
+        <button class="upgrade-btn" data-upgrade="bulletSpeed">Bullet Speed</button>
+        <button class="upgrade-btn" data-upgrade="health">Health</button>
+        <button class="upgrade-btn" data-upgrade="regen">Health Regen</button>
+        <button class="upgrade-btn" data-upgrade="reload">Reload Speed</button>
+      </div>
+    </div>
   </div>
 
-  <div id="debugOverlay"></div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
 </body>
 </html>

@@ -1,3 +1,5 @@
+// index.js - Server
+
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
@@ -5,54 +7,59 @@ const io = require('socket.io')(http);
 
 const PORT = process.env.PORT || 5000;
 
-// Serve client files from public folder
+// Serve client files
 app.use(express.static('public'));
 
-const MAP_WIDTH = 2200;
-const MAP_HEIGHT = 1600;
-
-const PLAYER_RADIUS = 32;
-const BOT_RADIUS = 32;
-const COIN_RADIUS = 14;
+// Constants
+const MAP_WIDTH = 1600;
+const MAP_HEIGHT = 900;
+const PLAYER_SIZE = 32;
+const BOT_SIZE = 32;
+const COIN_SIZE = 14;
 const PROJECTILE_SIZE = 8;
+const PROJECTILE_SPEED = 14;
+const PLAYER_SPEED = 5;
+const BOT_SPEED = 2.5;
+const SHOOT_COOLDOWN = 250;
 
-const SHOOT_COOLDOWN_BASE = 300;
-
-const BOT_NAMES = [
-  "Sliker", "Tung Sahur", "YourMom", "ZeroCool", "Botinator",
-  "Alpha", "Glitch", "Nano", "Cypher", "MechX", "Shadow", "Vortex"
-];
-
-let players = {};
-let bots = {};
-let projectiles = {};
-let coins = {};
+// Game state
+const players = {};
+const bots = {};
+const projectiles = {};
+const coins = {};
 
 let botIdCounter = 1;
 let projectileIdCounter = 1;
 let coinIdCounter = 1;
 
-// Utility
-function randomRange(min, max) {
-  return Math.random() * (max - min) + min;
+// Game modes data
+const gameModes = ['Free For All', 'Team Deathmatch'];
+let currentGameMode = 'Free For All';
+
+// Helper to generate random position in map
+function randomPosition(size) {
+  return {
+    x: Math.random() * (MAP_WIDTH - size * 2) + size,
+    y: Math.random() * (MAP_HEIGHT - size * 2) + size,
+  };
 }
 
 function createBot() {
+  const pos = randomPosition(BOT_SIZE);
   return {
     id: 'bot' + botIdCounter++,
-    name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)],
-    x: randomRange(BOT_RADIUS, MAP_WIDTH - BOT_RADIUS),
-    y: randomRange(BOT_RADIUS, MAP_HEIGHT - BOT_RADIUS),
-    radius: BOT_RADIUS,
+    x: pos.x,
+    y: pos.y,
+    size: BOT_SIZE,
     health: 100,
     maxHealth: 100,
-    speed: 2,
+    speed: BOT_SPEED,
     angle: Math.random() * Math.PI * 2,
-    lastShot: 0,
-    shootCooldown: 1200,
-    damage: 10, // Nerfed
-    bulletSpeed: 9,
     sawAngle: 0,
+    color1: '#f39c12',
+    color2: '#e67e22',
+    name: randomBotName(),
+    team: null,
   };
 }
 
@@ -61,237 +68,243 @@ function createCoin(x, y, value = 1) {
     id: 'coin' + coinIdCounter++,
     x,
     y,
-    radius: COIN_RADIUS,
+    size: COIN_SIZE,
     value,
-    isChest: value > 1,
   };
 }
 
-for(let i=0; i<10; i++) {
-  const bot = createBot();
-  bots[bot.id] = bot;
+function randomBotName() {
+  const names = ['Sliker', 'Tung Sahur', 'YourMom', 'AlphaBot', 'MechaX', 'RoboKing', 'SteelWolf', 'BlastCore'];
+  return names[Math.floor(Math.random() * names.length)];
 }
 
-io.on('connection', socket => {
+// Spawn initial bots
+for (let i = 0; i < 10; i++) {
+  bots['bot' + i] = createBot();
+}
+
+// Broadcast leaderboard top players
+function broadcastLeaderboard() {
+  const topPlayers = Object.values(players)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      score: p.score,
+      coins: p.coins || 0,
+      team: p.team || null,
+    }));
+  io.emit('leaderboard', topPlayers);
+}
+
+// Socket connection
+io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  socket.on('playerJoined', (name) => {
+  socket.on('selectGameMode', (mode) => {
+    if (gameModes.includes(mode)) currentGameMode = mode;
+    // Could reset game state here if needed
+  });
+
+  socket.on('playerJoined', (data) => {
+    // Data contains player name and chosen team if team mode
+    const pos = randomPosition(PLAYER_SIZE);
     players[socket.id] = {
       id: socket.id,
-      name: name.slice(0, 15),
-      x: randomRange(PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS),
-      y: randomRange(PLAYER_RADIUS, MAP_HEIGHT - PLAYER_RADIUS),
-      radius: PLAYER_RADIUS,
+      name: data?.name || 'Player',
+      x: pos.x,
+      y: pos.y,
+      size: PLAYER_SIZE,
       health: 100,
       maxHealth: 100,
-      speed: 4,
-      damage: 20,
-      bulletSpeed: 12,
-      shootCooldown: SHOOT_COOLDOWN_BASE,
-      lastShot: 0,
-      regen: 0.01,
       score: 0,
       coins: 0,
-      upgrades: {
-        damage: 0,
-        bulletSpeed: 0,
-        health: 0,
-        regen: 0,
-        reloadSpeed: 0,
-      },
       angle: 0,
-      autofire: false,
+      color1: '#3498db',
+      color2: '#2980b9',
+      lastShot: 0,
+      speed: PLAYER_SPEED,
+      damage: 20,
+      team: currentGameMode === 'Team Deathmatch' ? data?.team || 'red' : null,
+      autoFire: false,
     };
-    socket.emit('init', {players, bots, coins, projectiles});
+
+    // Send initial game state
+    socket.emit('init', { players, bots, coins, projectiles, gameMode: currentGameMode, gameModes });
+
+    // Notify others
     socket.broadcast.emit('newPlayer', players[socket.id]);
   });
 
-  socket.on('playerMovement', data => {
-    let p = players[socket.id];
-    if(!p) return;
-    p.x = Math.max(p.radius, Math.min(data.x, MAP_WIDTH - p.radius));
-    p.y = Math.max(p.radius, Math.min(data.y, MAP_HEIGHT - p.radius));
-    p.angle = data.angle;
+  socket.on('playerMovement', (data) => {
+    const player = players[socket.id];
+    if (!player) return;
+
+    // Clamp position inside map
+    player.x = Math.max(player.size, Math.min(data.x, MAP_WIDTH - player.size));
+    player.y = Math.max(player.size, Math.min(data.y, MAP_HEIGHT - player.size));
+    player.angle = data.angle;
+
     io.emit('updatePlayers', players);
   });
 
   socket.on('shoot', () => {
-    const p = players[socket.id];
-    if(!p) return;
+    const player = players[socket.id];
+    if (!player) return;
 
-    let now = Date.now();
-    if(now - p.lastShot < p.shootCooldown) return;
-    p.lastShot = now;
+    const now = Date.now();
+    if (now - player.lastShot < SHOOT_COOLDOWN) return; // cooldown
 
-    let bulletOffset = p.radius + 8;
-    const projId = 'p' + projectileIdCounter++;
+    player.lastShot = now;
 
-    projectiles[projId] = {
-      id: projId,
-      x: p.x + Math.cos(p.angle) * bulletOffset,
-      y: p.y + Math.sin(p.angle) * bulletOffset,
-      angle: p.angle,
-      speed: p.bulletSpeed,
+    const bulletOffset = player.size + 8;
+    const projectile = {
+      id: 'p' + projectileIdCounter++,
+      x: player.x + Math.cos(player.angle) * bulletOffset,
+      y: player.y + Math.sin(player.angle) * bulletOffset,
+      angle: player.angle,
+      speed: PROJECTILE_SPEED,
       owner: socket.id,
       size: PROJECTILE_SIZE,
-      damage: p.damage,
+      damage: player.damage,
     };
 
-    io.emit('newProjectile', projectiles[projId]);
+    projectiles[projectile.id] = projectile;
+    io.emit('newProjectile', projectile);
   });
 
-  socket.on('toggleAutofire', () => {
-    if(players[socket.id]) {
-      players[socket.id].autofire = !players[socket.id].autofire;
-      io.to(socket.id).emit('autofireStatus', players[socket.id].autofire);
+  socket.on('toggleAutoFire', (enabled) => {
+    if (players[socket.id]) {
+      players[socket.id].autoFire = enabled;
     }
-  });
-
-  socket.on('buyUpgrade', (upgradeType) => {
-    const p = players[socket.id];
-    if(!p) return;
-    const costMap = {
-      damage: 5,
-      bulletSpeed: 5,
-      health: 10,
-      regen: 10,
-      reloadSpeed: 10,
-    };
-    if(!costMap[upgradeType]) return;
-    const cost = costMap[upgradeType];
-    if(p.coins < cost) return;
-
-    p.coins -= cost;
-    p.upgrades[upgradeType]++;
-    switch(upgradeType) {
-      case 'damage': p.damage += 3; break;
-      case 'bulletSpeed': p.bulletSpeed += 1.5; break;
-      case 'health': 
-        p.maxHealth += 20; 
-        p.health = p.maxHealth;
-        break;
-      case 'regen': p.regen += 0.005; break;
-      case 'reloadSpeed': p.shootCooldown = Math.max(50, p.shootCooldown - 40); break;
-    }
-    io.to(socket.id).emit('upgradeSuccess', p.upgrades);
-    io.emit('updatePlayers', players);
   });
 
   socket.on('disconnect', () => {
+    console.log('Player disconnected:', socket.id);
     delete players[socket.id];
     io.emit('removePlayer', socket.id);
   });
 });
 
-// Game loop every 50ms
+// Game main loop 50ms (20 FPS)
 setInterval(() => {
-  // Move bots & shooting
-  for(const botId in bots) {
-    const bot = bots[botId];
+  // Move bots with AI
+  for (const id in bots) {
+    const bot = bots[id];
     bot.x += Math.cos(bot.angle) * bot.speed;
     bot.y += Math.sin(bot.angle) * bot.speed;
 
-    if(bot.x < bot.radius || bot.x > MAP_WIDTH - bot.radius) bot.angle = Math.PI - bot.angle;
-    if(bot.y < bot.radius || bot.y > MAP_HEIGHT - bot.radius) bot.angle = -bot.angle;
+    // Bounce off map edges
+    if (bot.x < bot.size || bot.x > MAP_WIDTH - bot.size) bot.angle = Math.PI - bot.angle;
+    if (bot.y < bot.size || bot.y > MAP_HEIGHT - bot.size) bot.angle = -bot.angle;
 
     bot.sawAngle += 0.15;
     bot.health = Math.min(bot.health + 0.02, bot.maxHealth);
-    bot.angle += (Math.random() - 0.5) * 0.15;
+    bot.angle += (Math.random() - 0.5) * 0.2;
 
-    // Bot shooting (50% nerf)
-    if(Date.now() - bot.lastShot > bot.shootCooldown) {
-      bot.lastShot = Date.now();
-      const projId = 'p' + projectileIdCounter++;
-      projectiles[projId] = {
-        id: projId,
-        x: bot.x + Math.cos(bot.angle) * (bot.radius + 8),
-        y: bot.y + Math.sin(bot.angle) * (bot.radius + 8),
+    // Bots shoot with nerfed damage & rate
+    if (Math.random() < 0.01) { // 1% chance every tick
+      const projectile = {
+        id: 'p' + projectileIdCounter++,
+        x: bot.x + Math.cos(bot.angle) * (bot.size + 8),
+        y: bot.y + Math.sin(bot.angle) * (bot.size + 8),
         angle: bot.angle,
-        speed: bot.bulletSpeed,
+        speed: PROJECTILE_SPEED,
         owner: bot.id,
         size: PROJECTILE_SIZE,
-        damage: bot.damage,
+        damage: 10, // nerfed damage 50%
       };
-      io.emit('newProjectile', projectiles[projId]);
+      projectiles[projectile.id] = projectile;
+      io.emit('newProjectile', projectile);
     }
   }
 
-  // Move projectiles & collisions
-  for(const projId in projectiles) {
-    const p = projectiles[projId];
+  // Move projectiles and check collisions
+  for (const id in projectiles) {
+    const p = projectiles[id];
     p.x += Math.cos(p.angle) * p.speed;
     p.y += Math.sin(p.angle) * p.speed;
 
-    if(p.x < 0 || p.x > MAP_WIDTH || p.y < 0 || p.y > MAP_HEIGHT) {
-      delete projectiles[projId];
-      io.emit('removeProjectile', projId);
+    // Remove if out of map
+    if (p.x < 0 || p.x > MAP_WIDTH || p.y < 0 || p.y > MAP_HEIGHT) {
+      delete projectiles[id];
+      io.emit('removeProjectile', id);
       continue;
     }
 
-    // Check hits on bots (exclude own projectiles)
-    for(const botId in bots) {
-      const bot = bots[botId];
-      if(p.owner === bot.id) continue;
-      if(Math.hypot(bot.x - p.x, bot.y - p.y) < bot.radius + p.size) {
-        bot.health -= p.damage;
-
-        // Award player score for damage
-        if(players[p.owner]) players[p.owner].score += 1;
-
-        if(bot.health <= 0) {
-          const coin = createCoin(bot.x, bot.y, Math.random() < 0.3 ? 25 : 10);
-          coins[coin.id] = coin;
-
-          bots[botId] = createBot();
-
-          if(players[p.owner]) {
-            players[p.owner].score += 10;
-            players[p.owner].coins += coin.value;
+    // Check collision with players and bots (different in modes)
+    if (p.owner.startsWith('bot')) {
+      // Projectile from bot - can hit players
+      for (const playerId in players) {
+        const player = players[playerId];
+        const dist = Math.hypot(player.x - p.x, player.y - p.y);
+        if (dist < player.size + p.size && player.health > 0) {
+          player.health -= p.damage;
+          if (player.health <= 0) {
+            player.health = 0;
+            players[p.owner]?.score += 10;
+            // Respawn player later or handle death logic here
           }
+          delete projectiles[id];
+          io.emit('removeProjectile', id);
+          io.emit('updatePlayers', players);
+          break;
         }
+      }
+    } else {
+      // Projectile from player - can hit bots and other players (depending on mode)
+      let hit = false;
 
-        delete projectiles[projId];
-        io.emit('removeProjectile', projId);
+      // Hit bots
+      for (const botId in bots) {
+        const bot = bots[botId];
+        const dist = Math.hypot(bot.x - p.x, bot.y - p.y);
+        if (dist < bot.size + p.size) {
+          bot.health -= p.damage;
+          if (players[p.owner]) players[p.owner].score += 1;
+
+          if (bot.health <= 0) {
+            // Spawn coin chest with random value 10 or 25
+            const coinValue = Math.random() < 0.7 ? 10 : 25;
+            const coin = createCoin(bot.x, bot.y, coinValue);
+            coins[coin.id] = coin;
+            io.emit('spawnCoin', coin);
+
+            bots[botId] = createBot();
+
+            if (players[p.owner]) {
+              players[p.owner].score += 10;
+              players[p.owner].coins += coin.value;
+            }
+          }
+
+          hit = true;
+          break;
+        }
+      }
+
+      // Could add friendly fire / PvP here depending on gameMode
+
+      if (hit) {
+        delete projectiles[id];
+        io.emit('removeProjectile', id);
         io.emit('updateBots', bots);
         io.emit('updatePlayers', players);
-        break;
-      }
-    }
-
-    // Check hits on players (exclude own projectiles)
-    for(const playerId in players) {
-      const pl = players[playerId];
-      if(p.owner === playerId) continue;
-      if(Math.hypot(pl.x - p.x, pl.y - p.y) < pl.radius + p.size) {
-        pl.health -= p.damage;
-        if(players[p.owner]) players[p.owner].score += 1;
-
-        if(pl.health <= 0) {
-          // Respawn player randomly
-          pl.x = randomRange(PLAYER_RADIUS, MAP_WIDTH - PLAYER_RADIUS);
-          pl.y = randomRange(PLAYER_RADIUS, MAP_HEIGHT - PLAYER_RADIUS);
-          pl.health = pl.maxHealth;
-          pl.score = Math.max(0, pl.score - 10);
-          pl.coins = Math.max(0, pl.coins - 10);
-          io.to(pl.id).emit('playerDied');
-        }
-        delete projectiles[projId];
-        io.emit('removeProjectile', projId);
-        io.emit('updatePlayers', players);
-        break;
       }
     }
   }
 
-  // Coin pickup detection
-  for(const playerId in players) {
-    const pl = players[playerId];
-    for(const coinId in coins) {
-      const c = coins[coinId];
-      if(Math.hypot(pl.x - c.x, pl.y - c.y) < pl.radius + c.radius) {
-        pl.coins += c.value;
-        pl.score += c.value * 5;
-        io.emit('removeCoin', c.id);
+  // Check coin pickups
+  for (const playerId in players) {
+    const player = players[playerId];
+    for (const coinId in coins) {
+      const coin = coins[coinId];
+      const dist = Math.hypot(player.x - coin.x, player.y - coin.y);
+      if (dist < player.size + coin.size) {
+        player.coins += coin.value;
+        player.score += coin.value * 5;
+        io.emit('removeCoin', coin.id);
         delete coins[coinId];
         io.emit('updatePlayers', players);
       }
@@ -301,16 +314,11 @@ setInterval(() => {
   io.emit('updateBots', bots);
   io.emit('updateProjectiles', projectiles);
   io.emit('updateCoins', coins);
-
-  // Leaderboard every second
 }, 50);
 
+// Broadcast leaderboard every second
 setInterval(() => {
-  const topPlayers = Object.values(players)
-    .sort((a,b) => b.score - a.score)
-    .slice(0, 5)
-    .map(p => ({ name: p.name, score: p.score, coins: p.coins }));
-  io.emit('leaderboard', topPlayers);
+  broadcastLeaderboard();
 }, 1000);
 
 http.listen(PORT, () => {
