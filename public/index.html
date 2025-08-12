@@ -1,22 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BattleBots.io - Advanced Multiplayer Battle Game</title>
-<link rel="stylesheet" href="style.css" />
-<script src="/socket.io/socket.io.js"></script>
-<script defer src="client.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BattleBots.io</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="menu">
-    <h1>BattleBots.io</h1>
-    <input id="nameInput" type="text" placeholder="Enter your name (max 12 chars)" maxlength="12" />
-    <button id="playBtn">Play</button>
+
+  <!-- The Game Canvas runs always in the background -->
+  <canvas id="gameCanvas" width="900" height="600"></canvas>
+
+  <!-- Main Menu Overlay -->
+  <div id="mainMenu" class="menu-overlay">
+    <div class="menu-container">
+      <h1>BattleBots.io</h1>
+      <input id="nameInput" type="text" placeholder="Enter your name" maxlength="15" autocomplete="off" />
+      <button id="startBtn">Play</button>
+      <p class="hint">Press 'E' to toggle autofire after playing</p>
+    </div>
   </div>
 
-  <canvas id="gameCanvas" style="display:none;"></canvas>
+  <!-- Game UI shown after start -->
+  <div id="gameUI" style="display:none;">
+    <div id="statsPanel">
+      <div>Player: <span id="playerName"></span></div>
+      <div>Health: <span id="healthText"></span></div>
+      <div>Score: <span id="scoreText"></span></div>
+      <div>Coins: <span id="coinsText"></span></div>
+      <div>AutoFire: <span id="autoFireText">OFF</span> (Press 'E')</div>
+    </div>
 
-  <div id="loadingScreen">Loading...</div>
+    <div id="upgradePanel">
+      <h3>Upgrades</h3>
+      <div class="upgrade" data-type="damage">Damage (<span id="damageLevel">0</span>) <button class="buyBtn" data-type="damage">Buy</button></div>
+      <div class="upgrade" data-type="bulletSpeed">Bullet Speed (<span id="bulletSpeedLevel">0</span>) <button class="buyBtn" data-type="bulletSpeed">Buy</button></div>
+      <div class="upgrade" data-type="health">Health (<span id="healthLevel">0</span>) <button class="buyBtn" data-type="health">Buy</button></div>
+      <div class="upgrade" data-type="regen">Health Regen (<span id="regenLevel">0</span>) <button class="buyBtn" data-type="regen">Buy</button></div>
+      <div class="upgrade" data-type="reload">Reload Speed (<span id="reloadLevel">0</span>) <button class="buyBtn" data-type="reload">Buy</button></div>
+    </div>
+
+    <div id="leaderboardPanel">
+      <h3>Leaderboard</h3>
+      <ul id="leaderboardList"></ul>
+    </div>
+
+    <div id="miniMap"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>
