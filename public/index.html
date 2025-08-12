@@ -2,48 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BattleBots.io</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="main-menu" class="menu-screen">
     <h1>BattleBots.io</h1>
-    <input type="text" id="player-name" placeholder="Enter your name" maxlength="15" autocomplete="off" />
-    <select id="game-mode">
-      <option value="classic">Classic Mode</option>
-      <option value="fast">Fast Mode</option>
-      <option value="hardcore">Hardcore Mode</option>
-    </select>
-    <button id="play-btn">Play</button>
+    <input id="playerNameInput" type="text" placeholder="Enter your name" maxlength="15" />
+    <div class="mode-select">
+      <label><input type="radio" name="mode" value="free" checked /> Free For All</label>
+      <label><input type="radio" name="mode" value="teams" /> Teams (Red vs Blue)</label>
+    </div>
+    <button id="startGameBtn">Play</button>
   </div>
 
-  <canvas id="gameCanvas"></canvas>
+  <canvas id="gameCanvas" width="900" height="700"></canvas>
 
-  <div id="ui" class="hidden">
+  <div id="hud" class="hidden">
     <div id="scoreboard">
-      <h2>Leaderboard</h2>
-      <ul id="leaderboard-list"></ul>
+      <h3>Score: <span id="score">0</span></h3>
+      <h3>Coins: <span id="coins">0</span></h3>
+      <h3>Team Score: <span id="teamScore">0</span></h3>
     </div>
 
-    <div id="player-stats">
-      <div>Health: <span id="health">100</span></div>
-      <div>Coins: <span id="coins">0</span></div>
-      <button id="upgrade-btn">Upgrades</button>
+    <div id="upgradesPanel">
+      <h3>Upgrades</h3>
+      <button class="upgradeBtn" data-upgrade="damage">Damage (<span id="damageLevel">1</span>)</button>
+      <button class="upgradeBtn" data-upgrade="bulletSpeed">Bullet Speed (<span id="bulletSpeedLevel">1</span>)</button>
+      <button class="upgradeBtn" data-upgrade="health">Health (<span id="healthLevel">1</span>)</button>
+      <button class="upgradeBtn" data-upgrade="regen">Health Regen (<span id="regenLevel">1</span>)</button>
+      <button class="upgradeBtn" data-upgrade="reload">Reload Speed (<span id="reloadLevel">1</span>)</button>
     </div>
 
-    <div id="upgrades-panel" class="hidden">
-      <button id="close-upgrades">X</button>
-      <h2>Upgrade Your Bot</h2>
-      <ul>
-        <li><button class="upgrade" data-upgrade="damage">Damage</button></li>
-        <li><button class="upgrade" data-upgrade="reloadSpeed">Reload Speed</button></li>
-        <li><button class="upgrade" data-upgrade="bulletSpeed">Bullet Speed</button></li>
-        <li><button class="upgrade" data-upgrade="health">Health</button></li>
-        <li><button class="upgrade" data-upgrade="healthRegen">Health Regen</button></li>
-      </ul>
-      <div id="upgrade-message"></div>
+    <div id="chatContainer">
+      <button id="toggleChatBtn">Chat</button>
+      <div id="chatBox" class="hidden">
+        <div id="chatMessages"></div>
+        <input id="chatInput" type="text" placeholder="Type a message..." maxlength="100" />
+      </div>
     </div>
+
+    <div id="leaderboard">
+      <h3>Leaderboard</h3>
+      <ul id="leaderboardList"></ul>
+    </div>
+
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

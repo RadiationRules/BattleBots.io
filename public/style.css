@@ -1,231 +1,249 @@
 /* Reset */
 * {
-  margin: 0; padding: 0; box-sizing: border-box; user-select: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  user-select: none;
 }
 
-body, html {
-  width: 100%; height: 100%; background: #111 url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80') no-repeat center center fixed;
-  background-size: cover;
+/* Body and background */
+body {
+  background: linear-gradient(135deg, #121212 0%, #1e1e2f 100%);
+  color: white;
   overflow: hidden;
-  color: #eee;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .menu-screen {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.85);
-  padding: 30px 40px;
-  border-radius: 20px;
-  text-align: center;
-  width: 90vw;
-  max-width: 400px;
-  box-shadow: 0 0 30px #f39c12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0,0,0,0.8);
+  padding: 40px 60px;
+  border-radius: 15px;
+  box-shadow: 0 0 20px #1e90ff;
+  width: 320px;
 }
 
 .menu-screen h1 {
   font-size: 3rem;
-  color: #f39c12;
-  margin-bottom: 25px;
-  text-shadow: 0 0 12px #e67e22;
+  margin-bottom: 20px;
+  color: #1e90ff;
+  text-shadow: 0 0 10px #1e90ff;
 }
 
-.menu-screen input,
-.menu-screen select,
+.menu-screen input[type="text"] {
+  width: 100%;
+  padding: 12px 15px;
+  font-size: 1.2rem;
+  border-radius: 8px;
+  border: none;
+  margin-bottom: 20px;
+  outline: none;
+  box-shadow: inset 0 0 10px #1e90ff;
+  background: #222;
+  color: white;
+}
+
+.menu-screen .mode-select {
+  width: 100%;
+  margin-bottom: 30px;
+  display: flex;
+  justify-content: space-around;
+  font-size: 1.1rem;
+}
+
+.menu-screen .mode-select label {
+  cursor: pointer;
+  color: #ccc;
+  user-select: none;
+  transition: color 0.3s;
+}
+
+.menu-screen .mode-select input[type="radio"]:checked + label {
+  color: #1e90ff;
+}
+
 .menu-screen button {
   width: 100%;
-  padding: 14px 10px;
-  margin: 12px 0;
-  border-radius: 10px;
+  padding: 15px 0;
+  font-size: 1.5rem;
   border: none;
-  font-size: 1.1rem;
-  outline: none;
-  transition: all 0.3s ease;
-  background-color: #222;
-  color: #f39c12;
-  box-shadow: inset 0 0 8px #f39c12;
+  border-radius: 10px;
+  background: #1e90ff;
+  color: white;
   cursor: pointer;
+  transition: background 0.3s;
+  box-shadow: 0 0 15px #1e90ff;
 }
 
-.menu-screen input::placeholder {
-  color: #f39c12;
-  opacity: 0.6;
+.menu-screen button:hover {
+  background: #0c68d6;
 }
 
-.menu-screen button:hover,
-.menu-screen select:hover,
-.menu-screen input:hover {
-  background-color: #f39c12;
-  color: #222;
-  box-shadow: 0 0 15px #e67e22;
-}
-
+/* Game canvas */
 #gameCanvas {
   display: none;
-  background: #222;
-  width: 100vw;
-  height: 100vh;
+  background: #111;
+  border-radius: 15px;
+  box-shadow: 0 0 30px #1e90ff;
 }
 
-#ui {
-  position: fixed;
+/* HUD */
+#hud {
+  position: absolute;
   top: 15px;
   left: 15px;
-  color: #f39c12;
-  text-shadow: 0 0 8px #e67e22;
+  right: 15px;
+  display: flex;
+  justify-content: space-between;
+  color: white;
+  font-weight: 600;
+  font-size: 1.1rem;
   user-select: none;
 }
 
-#scoreboard {
-  background: rgba(0, 0, 0, 0.7);
+#scoreboard h3 {
+  margin-right: 20px;
+  color: #1e90ff;
+}
+
+#upgradesPanel {
+  background: rgba(0,0,0,0.7);
   padding: 10px 15px;
   border-radius: 10px;
-  max-width: 220px;
-  margin-bottom: 15px;
-}
-
-#scoreboard h2 {
-  margin-bottom: 10px;
-  font-size: 1.3rem;
-  border-bottom: 1px solid #e67e22;
-  padding-bottom: 4px;
-}
-
-#leaderboard-list {
-  list-style: none;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-#leaderboard-list li {
-  padding: 4px 6px;
-  border-bottom: 1px solid #e67e22;
-  font-size: 1rem;
   display: flex;
-  justify-content: space-between;
-}
-
-#player-stats {
-  background: rgba(0, 0, 0, 0.7);
-  padding: 10px 15px;
-  border-radius: 10px;
-  width: 220px;
-  display: flex;
-  justify-content: space-between;
+  gap: 10px;
   align-items: center;
+  box-shadow: 0 0 10px #1e90ff;
 }
 
-#player-stats div {
-  font-size: 1.1rem;
+#upgradesPanel h3 {
+  margin-right: 15px;
+  font-weight: 700;
+  color: #1e90ff;
 }
 
-#upgrade-btn {
-  background: #f39c12;
-  border: none;
-  color: #222;
-  font-weight: bold;
+.upgradeBtn {
+  background: #222;
+  border: 2px solid #1e90ff;
+  color: #1e90ff;
+  padding: 8px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  border-radius: 8px;
-  padding: 8px 14px;
-  transition: background-color 0.3s ease;
-}
-
-#upgrade-btn:hover {
-  background: #e67e22;
-}
-
-#upgrades-panel {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.9);
-  color: #f39c12;
-  padding: 20px 30px;
-  border-radius: 20px;
-  width: 280px;
-  box-shadow: 0 0 40px #e67e22;
-  z-index: 9999;
+  transition: all 0.3s ease;
   user-select: none;
 }
 
-#upgrades-panel.hidden {
-  display: none;
+.upgradeBtn:hover {
+  background: #1e90ff;
+  color: #222;
 }
 
-#upgrades-panel h2 {
+/* Chat */
+#chatContainer {
+  position: fixed;
+  bottom: 15px;
+  left: 15px;
+  width: 300px;
+  font-size: 0.9rem;
+  color: white;
+}
+
+#toggleChatBtn {
+  background: #1e90ff;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 0 10px #1e90ff;
+  user-select: none;
+}
+
+#chatBox {
+  margin-top: 8px;
+  background: rgba(0,0,0,0.8);
+  border-radius: 10px;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+#chatBox.hidden {
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+#chatMessages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #1e90ff #222;
+}
+
+#chatMessages::-webkit-scrollbar {
+  width: 8px;
+}
+
+#chatMessages::-webkit-scrollbar-thumb {
+  background-color: #1e90ff;
+  border-radius: 4px;
+}
+
+#chatInput {
+  border: none;
+  outline: none;
+  padding: 10px 15px;
+  font-size: 1rem;
+  border-radius: 0 0 10px 10px;
+  background: #222;
+  color: white;
+}
+
+/* Leaderboard */
+#leaderboard {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  background: rgba(0,0,0,0.8);
+  border-radius: 10px;
+  width: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 0 15px #1e90ff;
+  padding: 10px 15px;
+  user-select: none;
+}
+
+#leaderboard h3 {
+  margin-bottom: 10px;
+  color: #1e90ff;
   text-align: center;
-  margin-bottom: 15px;
-  font-size: 1.8rem;
-  border-bottom: 1px solid #e67e22;
-  padding-bottom: 8px;
 }
 
-#upgrades-panel ul {
+#leaderboardList {
   list-style: none;
 }
 
-#upgrades-panel li {
-  margin: 10px 0;
+#leaderboardList li {
+  padding: 4px 8px;
+  border-bottom: 1px solid #1e90ff;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
 }
 
-#upgrades-panel button.upgrade {
-  width: 100%;
-  padding: 10px 0;
-  font-size: 1.1rem;
-  background: #222;
-  color: #f39c12;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  box-shadow: inset 0 0 10px #f39c12;
-}
-
-#upgrades-panel button.upgrade:hover {
-  background: #f39c12;
-  color: #222;
-  box-shadow: 0 0 12px #e67e22;
-}
-
-#close-upgrades {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  background: transparent;
-  border: none;
-  color: #f39c12;
-  font-size: 1.6rem;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-#upgrade-message {
-  text-align: center;
-  margin-top: 10px;
-  min-height: 20px;
-  font-weight: bold;
-}
-
+/* Hide elements */
 .hidden {
-  display: none !important;
-}
-
-/* Responsive adjustments */
-
-@media (max-width: 768px) {
-  #scoreboard, #player-stats {
-    width: 90vw;
-    max-width: none;
-  }
-
-  #upgrades-panel {
-    width: 90vw;
-    padding: 15px 20px;
-  }
-
-  .menu-screen {
-    width: 90vw;
-  }
+  display: none;
 }
