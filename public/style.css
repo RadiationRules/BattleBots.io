@@ -11,6 +11,52 @@ body, html {
   color: white;
 }
 
+#menu {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 12px;
+  padding: 40px 50px;
+  box-shadow: 0 0 25px #3498db;
+  text-align: center;
+  user-select: text;
+}
+
+#menu h1 {
+  font-size: 48px;
+  margin-bottom: 24px;
+  font-weight: 900;
+  color: #3498db;
+  text-shadow: 0 0 8px #2980b9;
+}
+
+#menu input {
+  width: 260px;
+  padding: 10px 14px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  margin-bottom: 20px;
+}
+
+#menu button {
+  background: #3498db;
+  border: none;
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 12px 30px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+#menu button:hover {
+  background: #2980b9;
+}
+
 #gameCanvas {
   display: block;
   background: radial-gradient(circle at center, #2c3e50 0%, #1a252f 80%);
@@ -27,21 +73,5 @@ body, html {
   color: #fff;
   font-weight: 700;
   z-index: 100;
-}
-
-/* Buttons styling for upgrade buy */
-button.upgrade-btn {
-  background: #27ae60;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-button.upgrade-btn:disabled {
-  background: #7f8c8d;
-  cursor: not-allowed;
+  user-select: none;
 }

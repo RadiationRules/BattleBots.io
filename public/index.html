@@ -9,7 +9,14 @@
 <script defer src="client.js"></script>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
-<div id="loadingScreen">Loading...</div>
+  <div id="menu">
+    <h1>BattleBots.io</h1>
+    <input id="nameInput" type="text" placeholder="Enter your name (max 12 chars)" maxlength="12" />
+    <button id="playBtn">Play</button>
+  </div>
+
+  <canvas id="gameCanvas" style="display:none;"></canvas>
+
+  <div id="loadingScreen">Loading...</div>
 </body>
 </html>

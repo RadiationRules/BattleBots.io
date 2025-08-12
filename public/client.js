@@ -10,9 +10,14 @@ let players = {};
 let bots = {};
 let projectiles = {};
 let coins = {};
+let chests = {};
 let leaderboard = [];
 
+let mapWidth = 3000;
+let mapHeight = 2000;
+
 let upgradesPanelOpen = false;
+let inGame = false;
 
 const UPGRADES = ['damage', 'bulletSpeed', 'health', 'healthRegen', 'reload'];
 const UPGRADE_NAMES = {
@@ -29,23 +34,39 @@ function setup() {
   resize();
   window.addEventListener('resize', resize);
 
-  // Send mouse move
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     mousePos.x = e.clientX - rect.left;
     mousePos.y = e.clientY - rect.top;
   });
 
-  // Keyboard events
   window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
   window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-  // Join game
-  const playerName = prompt('Enter your name:', 'Anon');
-  socket.emit('playerJoined', playerName || 'Anon');
+  canvas.addEventListener('mousedown', () => {
+    if (inGame) socket.emit('shoot');
+  });
 
-  // Shoot on mouse click
-  canvas.addEventListener('mousedown', () => socket.emit('shoot'));
+  canvas.addEventListener('click', e => {
+    if (upgradesPanelOpen) {
+      handleUpgradesClick(e.clientX, e.clientY);
+    }
+  });
+
+  document.getElementById('playBtn').addEventListener('click', () => {
+    const nameInput = document.getElementById('nameInput');
+    let name = nameInput.value.trim().substring(0, 12);
+    if (!name) name = 'Anon';
+
+    socket.emit('playerJoined', name);
+    inGame = true;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('gameCanvas').style.display = 'block';
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.key.toLowerCase() === 'u') upgradesPanelOpen = !upgradesPanelOpen;
+  });
 
   requestAnimationFrame(gameLoop);
 }
@@ -53,17 +74,17 @@ function setup() {
 function resize() {
   width = window.innerWidth;
   height = window.innerHeight;
-  canvas.width = width;
-  canvas.height = height;
+  if (canvas) {
+    canvas.width = width;
+    canvas.height = height;
+  }
 }
 
-// Send player movement to server
 function sendMovement() {
   if (!playerId || !players[playerId]) return;
 
   const player = players[playerId];
 
-  // WASD movement
   let dx = 0, dy = 0;
   if (keys['w']) dy -= 1;
   if (keys['s']) dy += 1;
@@ -80,33 +101,26 @@ function sendMovement() {
   let newX = player.x + dx * speed;
   let newY = player.y + dy * speed;
 
-  // Clamp inside map
-  newX = Math.max(player.size, Math.min(newX, 900 - player.size));
-  newY = Math.max(player.size, Math.min(newY, 700 - player.size));
+  newX = Math.max(player.size, Math.min(newX, mapWidth - player.size));
+  newY = Math.max(player.size, Math.min(newY, mapHeight - player.size));
 
-  // Calculate angle to mouse relative to player position on canvas
   const angle = Math.atan2(mousePos.y - height / 2, mousePos.x - width / 2);
 
-  // Send to server if moved or angle changed
-  if (Math.abs(newX - player.x) > 0.01 || Math.abs(newY - player.y) > 0.01 || Math.abs(angle - player.angle) > 0.01) {
-    socket.emit('playerMovement', { x: newX, y: newY, angle });
-  }
+  socket.emit('playerMovement', { x: newX, y: newY, angle });
 }
 
-// Draw rounded rect helper
-function roundedRect(ctx, x, y, width, height, radius, fillStyle, strokeStyle) {
+function roundedRect(ctx, x, y, w, h, r, fillStyle, strokeStyle) {
   ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
-
   if (fillStyle) {
     ctx.fillStyle = fillStyle;
     ctx.fill();
@@ -117,39 +131,28 @@ function roundedRect(ctx, x, y, width, height, radius, fillStyle, strokeStyle) {
   }
 }
 
-// Draw player or bot with health bar and saw (for bot)
 function drawBot(bot) {
-  // Body circle gradient
+  // Body gradient
   const grad = ctx.createRadialGradient(bot.x, bot.y, bot.size / 3, bot.x, bot.y, bot.size);
   grad.addColorStop(0, bot.color1);
   grad.addColorStop(1, bot.color2);
 
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(bot.x, bot.y, bot.size, 0, Math.PI * 2);
+  ctx.arc(bot.x, bot.y, bot.size, 0, 2 * Math.PI);
   ctx.fill();
 
-  // Saw blade
-  ctx.save();
-  ctx.translate(bot.x, bot.y);
-  ctx.rotate(bot.sawAngle);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 6; i++) {
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(bot.size + 8, 0);
-    ctx.stroke();
-    ctx.rotate(Math.PI / 3);
-  }
-  ctx.restore();
+  // Name
+  ctx.fillStyle = 'white';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(bot.name, bot.x, bot.y - bot.size - 10);
 
-  // Health bar background
-  roundedRect(ctx, bot.x - bot.size, bot.y + bot.size + 8, bot.size * 2, 6, 3, '#555');
-
-  // Health bar fill
-  const healthRatio = bot.health / bot.maxHealth;
-  roundedRect(ctx, bot.x - bot.size, bot.y + bot.size + 8, bot.size * 2 * healthRatio, 6, 3, '#2ecc71');
+  // Health bar
+  ctx.fillStyle = '#333';
+  ctx.fillRect(bot.x - bot.size, bot.y + bot.size + 6, bot.size * 2, 8);
+  ctx.fillStyle = '#e74c3c';
+  ctx.fillRect(bot.x - bot.size, bot.y + bot.size + 6, (bot.health / bot.maxHealth) * bot.size * 2, 8);
 }
 
 function drawPlayer(player) {
@@ -160,136 +163,223 @@ function drawPlayer(player) {
 
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+  ctx.arc(player.x, player.y, player.size, 0, 2 * Math.PI);
   ctx.fill();
 
-  // Gun barrel
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.rotate(player.angle);
-  ctx.fillStyle = '#333';
-  ctx.fillRect(player.size - 4, -6, 20, 12);
-  ctx.restore();
-
-  // Health bar background
-  roundedRect(ctx, player.x - player.size, player.y + player.size + 8, player.size * 2, 8, 4, '#555');
-
-  // Health bar fill
-  const healthRatio = player.health / player.maxHealth;
-  roundedRect(ctx, player.x - player.size, player.y + player.size + 8, player.size * 2 * healthRatio, 8, 4, '#2ecc71');
-
-  // Coins & Score
-  ctx.fillStyle = '#fff';
-  ctx.font = '14px Arial';
+  // Name
+  ctx.fillStyle = 'white';
+  ctx.font = '16px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`Coins: ${player.coins}`, player.x, player.y - player.size - 20);
-  ctx.fillText(`Score: ${player.score}`, player.x, player.y - player.size - 6);
+  ctx.fillText(player.name, player.x, player.y - player.size - 10);
+
+  // Health bar
+  ctx.fillStyle = '#333';
+  ctx.fillRect(player.x - player.size, player.y + player.size + 8, player.size * 2, 8);
+  ctx.fillStyle = '#27ae60';
+  ctx.fillRect(player.x - player.size, player.y + player.size + 8, (player.health / player.maxHealth) * player.size * 2, 8);
 }
 
 function drawProjectile(p) {
-  ctx.fillStyle = '#e74c3c';
+  ctx.fillStyle = '#f1c40f';
   ctx.beginPath();
-  ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+  ctx.arc(p.x, p.y, p.size, 0, 2 * Math.PI);
   ctx.fill();
 }
 
-function drawCoin(coin) {
-  const grad = ctx.createRadialGradient(coin.x, coin.y, coin.size / 3, coin.x, coin.y, coin.size);
-  grad.addColorStop(0, '#f1c40f');
-  grad.addColorStop(1, '#f39c12');
-  ctx.fillStyle = grad;
+function drawCoin(c) {
+  ctx.fillStyle = 'gold';
   ctx.beginPath();
-  ctx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2);
+  ctx.arc(c.x, c.y, c.size, 0, 2 * Math.PI);
   ctx.fill();
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  ctx.fillStyle = '#b8860b';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('₵', c.x, c.y + 5);
 }
 
-// Draw leaderboard
-function drawLeaderboard() {
-  const panelX = width - 200;
-  const panelY = 40;
-  const panelWidth = 180;
-  const lineHeight = 24;
+function drawChest(chest) {
+  // Chest body
+  ctx.fillStyle = '#8e44ad';
+  ctx.strokeStyle = '#6c3483';
+  ctx.lineWidth = 3;
+  roundedRect(ctx, chest.x - chest.size / 2, chest.y - chest.size / 2, chest.size, chest.size, 6, '#8e44ad', '#6c3483');
+
+  // Value text
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(chest.value + '₵', chest.x, chest.y + 6);
+}
+
+function drawMapBackground() {
+  const padding = 20;
+  const bgX = width / 2 - mapWidth / 2;
+  const bgY = height / 2 - mapHeight / 2;
+
+  ctx.save();
+  ctx.translate(bgX, bgY);
+
+  // Large translucent rounded rectangle as background
+  roundedRect(ctx, 0, 0, mapWidth, mapHeight, 30, 'rgba(0,0,0,0.35)');
+  ctx.restore();
+}
+
+function drawMiniMap() {
+  const miniWidth = 200;
+  const miniHeight = 130;
+  const miniX = width - miniWidth - 20;
+  const miniY = height - miniHeight - 20;
+
+  ctx.save();
 
   // Background
-  roundedRect(ctx, panelX, panelY, panelWidth, 24 + leaderboard.length * lineHeight, 8, 'rgba(0,0,0,0.7)');
+  roundedRect(ctx, miniX, miniY, miniWidth, miniHeight, 15, 'rgba(0,0,0,0.7)');
 
-  ctx.fillStyle = '#fff';
-  ctx.font = '18px Arial';
+  // Border
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(miniX, miniY, miniWidth, miniHeight);
+
+  if (!playerId || !players[playerId]) {
+    ctx.restore();
+    return;
+  }
+
+  const p = players[playerId];
+
+  // Scaling factor from map to minimap
+  const scaleX = miniWidth / mapWidth;
+  const scaleY = miniHeight / mapHeight;
+
+  // Draw players as blue dots
+  Object.values(players).forEach(pl => {
+    ctx.fillStyle = (pl.id === playerId) ? '#3498db' : '#2980b9';
+    const x = miniX + pl.x * scaleX;
+    const y = miniY + pl.y * scaleY;
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Draw bots as orange dots
+  Object.values(bots).forEach(bot => {
+    ctx.fillStyle = '#f39c12';
+    const x = miniX + bot.x * scaleX;
+    const y = miniY + bot.y * scaleY;
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Draw chests as purple squares
+  Object.values(chests).forEach(chest => {
+    ctx.fillStyle = '#8e44ad';
+    const x = miniX + chest.x * scaleX;
+    const y = miniY + chest.y * scaleY;
+    ctx.fillRect(x - 4, y - 4, 8, 8);
+  });
+
+  ctx.restore();
+}
+
+function drawLeaderboard() {
+  const panelX = 20;
+  const panelY = 20;
+  const panelWidth = 260;
+  const lineHeight = 28;
+
+  // Background with padding for items + title
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowColor = 'black';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  const heightNeeded = 40 + leaderboard.length * lineHeight;
+  roundedRect(ctx, panelX, panelY, panelWidth, heightNeeded, 12, 'rgba(0,0,0,0.7)');
+
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = 'white';
+  ctx.font = '20px Segoe UI, Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('Leaderboard', panelX + panelWidth / 2, panelY + 20);
+  ctx.fillText('Leaderboard', panelX + panelWidth / 2, panelY + 30);
 
-  ctx.font = '16px Arial';
+  ctx.font = '16px Segoe UI, Arial';
   ctx.textAlign = 'left';
 
   leaderboard.forEach((p, i) => {
-    ctx.fillText(`${i + 1}. ${p.name}`, panelX + 10, panelY + 48 + i * lineHeight);
-    ctx.fillText(`Score: ${p.score}`, panelX + 100, panelY + 48 + i * lineHeight);
-    ctx.fillText(`Coins: ${p.coins}`, panelX + 150, panelY + 48 + i * lineHeight);
+    const y = panelY + 55 + i * lineHeight;
+    ctx.fillStyle = (p.id === playerId) ? '#2ecc71' : '#ecf0f1';
+
+    // Draw player name with max 12 chars, truncate with ...
+    const name = p.name.length > 12 ? p.name.substring(0, 10) + '...' : p.name;
+    ctx.fillText(`${i + 1}. ${name}`, panelX + 12, y);
+    ctx.fillText(`Score: ${p.score}`, panelX + 140, y);
+    ctx.fillText(`Coins: ${p.coins}`, panelX + 210, y);
   });
 }
 
-// Draw upgrades panel
 function drawUpgradesPanel() {
   if (!upgradesPanelOpen) return;
 
   const panelX = 20;
-  const panelY = 40;
+  const panelY = 80;
   const panelWidth = 300;
   const panelHeight = 270;
 
-  roundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 10, 'rgba(0,0,0,0.75)');
+  roundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 15, 'rgba(0,0,0,0.85)');
 
   ctx.fillStyle = '#fff';
-  ctx.font = '20px Arial';
+  ctx.font = '22px Segoe UI, Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('Upgrades', panelX + panelWidth / 2, panelY + 30);
+  ctx.fillText('Upgrades', panelX + panelWidth / 2, panelY + 35);
 
+  ctx.font = '18px Segoe UI, Arial';
   ctx.textAlign = 'left';
-  ctx.font = '16px Arial';
 
   if (!playerId || !players[playerId]) return;
   const p = players[playerId];
 
   UPGRADES.forEach((key, i) => {
-    const y = panelY + 70 + i * 35;
+    const y = panelY + 75 + i * 40;
     const lvl = p.upgrades[key];
     const costBase = {damage:15, bulletSpeed:15, health:20, healthRegen:25, reload:30};
     const cost = costBase[key] * (lvl + 1);
 
+    ctx.fillStyle = '#ecf0f1';
     ctx.fillText(`${UPGRADE_NAMES[key]}: Lv ${lvl}`, panelX + 20, y);
-    ctx.fillText(`Cost: ${cost} coins`, panelX + 200, y);
+    ctx.fillText(`Cost: ${cost} ₵`, panelX + 200, y);
 
     // Draw buy button
-    const btnX = panelX + panelWidth - 80;
-    const btnY = y - 18;
-    const btnW = 60;
-    const btnH = 24;
+    const btnX = panelX + panelWidth - 90;
+    const btnY = y - 28;
+    const btnW = 70;
+    const btnH = 30;
 
-    roundedRect(ctx, btnX, btnY, btnW, btnH, 5, (p.coins >= cost) ? '#27ae60' : '#7f8c8d');
+    roundedRect(ctx, btnX, btnY, btnW, btnH, 8, (p.coins >= cost) ? '#27ae60' : '#7f8c8d');
+
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText('Buy', btnX + btnW / 2, btnY + 17);
+    ctx.font = '18px Segoe UI, Arial';
+    ctx.fillText('Buy', btnX + btnW / 2, btnY + 22);
   });
 }
 
-// Click handler for upgrades buy buttons
 function handleUpgradesClick(x, y) {
   if (!upgradesPanelOpen) return;
   const panelX = 20;
-  const panelY = 40;
+  const panelY = 80;
   const panelWidth = 300;
 
   if (!playerId || !players[playerId]) return;
   const p = players[playerId];
 
   UPGRADES.forEach((key, i) => {
-    const btnX = panelX + panelWidth - 80;
-    const btnY = panelY + 70 + i * 35 - 18;
-    const btnW = 60;
-    const btnH = 24;
+    const btnX = panelX + panelWidth - 90;
+    const btnY = panelY + 75 + i * 40 - 28;
+    const btnW = 70;
+    const btnH = 30;
 
     if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
       socket.emit('buyUpgrade', key);
@@ -297,22 +387,22 @@ function handleUpgradesClick(x, y) {
   });
 }
 
-// Main draw function
 function draw() {
   ctx.clearRect(0, 0, width, height);
 
-  // Draw map background
-  const grd = ctx.createLinearGradient(0, 0, 0, height);
-  grd.addColorStop(0, '#222');
-  grd.addColorStop(1, '#111');
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, width, height);
-
-  // Translate so player is centered
   if (!playerId || !players[playerId]) return;
+
   const player = players[playerId];
+
+  // Center camera on player
   ctx.save();
   ctx.translate(width / 2 - player.x, height / 2 - player.y);
+
+  // Draw map background
+  drawMapBackground();
+
+  // Draw chests
+  Object.values(chests).forEach(drawChest);
 
   // Draw coins
   Object.values(coins).forEach(drawCoin);
@@ -330,12 +420,14 @@ function draw() {
 
   drawLeaderboard();
   drawUpgradesPanel();
+  drawMiniMap();
 
-  // Draw UI buttons
+  // Instructions text
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.font = '18px Arial';
+  ctx.font = '18px Segoe UI, Arial';
   ctx.textAlign = 'left';
-  ctx.fillText('Press U to toggle Upgrades Panel', 20, height - 20);
+  ctx.fillText('Press U to toggle Upgrades Panel', 20, height - 50);
+  ctx.fillText('WASD to move, Mouse to aim, Click to shoot', 20, height - 25);
 }
 
 function gameLoop() {
@@ -344,68 +436,36 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// Socket events
+// Socket handlers
 
 socket.on('init', data => {
   players = data.players;
   bots = data.bots;
   coins = data.coins;
+  chests = data.chests;
   projectiles = data.projectiles;
+  mapWidth = data.mapWidth;
+  mapHeight = data.mapHeight;
   playerId = socket.id;
+  document.getElementById('loadingScreen').style.display = 'none';
 });
 
-socket.on('newPlayer', player => {
-  players[player.id] = player;
-});
+socket.on('newPlayer', player => { players[player.id] = player; });
+socket.on('updatePlayers', data => { players = data; });
+socket.on('removePlayer', id => { delete players[id]; });
 
-socket.on('updatePlayers', data => {
-  players = data;
-});
+socket.on('updateBots', data => { bots = data; });
+socket.on('newProjectile', proj => { projectiles[proj.id] = proj; });
+socket.on('updateProjectiles', data => { projectiles = data; });
+socket.on('removeProjectile', id => { delete projectiles[id]; });
 
-socket.on('removePlayer', id => {
-  delete players[id];
-});
+socket.on('spawnCoin', coin => { coins[coin.id] = coin; });
+socket.on('updateCoins', data => { coins = data; });
+socket.on('removeCoin', id => { delete coins[id]; });
 
-socket.on('updateBots', data => {
-  bots = data;
-});
+socket.on('updateChests', data => { chests = data; });
+socket.on('removeChest', id => { delete chests[id]; });
 
-socket.on('newProjectile', proj => {
-  projectiles[proj.id] = proj;
-});
+socket.on('leaderboard', data => { leaderboard = data; });
 
-socket.on('updateProjectiles', data => {
-  projectiles = data;
-});
-
-socket.on('removeProjectile', id => {
-  delete projectiles[id];
-});
-
-socket.on('spawnCoin', coin => {
-  coins[coin.id] = coin;
-});
-
-socket.on('updateCoins', data => {
-  coins = data;
-});
-
-socket.on('removeCoin', id => {
-  delete coins[id];
-});
-
-socket.on('leaderboard', data => {
-  leaderboard = data;
-});
-
-window.onload = () => {
-  setup();
-};
-
-window.addEventListener('keydown', e => {
-  if (e.key.toLowerCase() === 'u') upgradesPanelOpen = !upgradesPanelOpen;
-});
-
-canvas?.addEventListener('click', e => {
-  handleUpgradesClick(e.clientX, e.clientY);
-});
+window.onload = () => setup();
