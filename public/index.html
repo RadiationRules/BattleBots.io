@@ -1,48 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BattleBots.io</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BattleBots.io - Polished</title>
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="mainMenu" class="menu">
-    <h1>BattleBots.io</h1>
-    <input id="nameInput" type="text" maxlength="12" placeholder="Enter your name" />
-    <button id="startBtn">Play</button>
-    <p class="hint">Press E in game to toggle Autofire</p>
-  </div>
+  <canvas id="gameCanvas" width="1200" height="800"></canvas>
 
-  <canvas id="gameCanvas" width="900" height="700" style="display:none;"></canvas>
-
-  <div id="gameUI" style="display:none;">
-    <div id="statsPanel">
-      <div><strong>Name:</strong> <span id="playerName"></span></div>
-      <div><strong>Health:</strong> <span id="healthText"></span></div>
-      <div><strong>Score:</strong> <span id="scoreText"></span></div>
-      <div><strong>Coins:</strong> <span id="coinsText"></span></div>
-      <div><strong>Autofire:</strong> <span id="autoFireText">OFF</span></div>
-    </div>
-
-    <div id="upgradePanel">
-      <h3>Upgrades</h3>
-      <div class="upgrade" data-type="damage">Damage (<span id="damageLevel">0</span>) <button class="buyBtn" data-type="damage">Buy</button></div>
-      <div class="upgrade" data-type="bulletSpeed">Bullet Speed (<span id="bulletSpeedLevel">0</span>) <button class="buyBtn" data-type="bulletSpeed">Buy</button></div>
-      <div class="upgrade" data-type="health">Health (<span id="healthLevel">0</span>) <button class="buyBtn" data-type="health">Buy</button></div>
-      <div class="upgrade" data-type="regen">Health Regen (<span id="regenLevel">0</span>) <button class="buyBtn" data-type="regen">Buy</button></div>
-      <div class="upgrade" data-type="reload">Reload Speed (<span id="reloadLevel">0</span>) <button class="buyBtn" data-type="reload">Buy</button></div>
-    </div>
-
-    <div id="leaderboardPanel">
+  <div id="ui">
+    <div id="leaderboard">
       <h3>Leaderboard</h3>
-      <ul id="leaderboardList"></ul>
+      <ul></ul>
     </div>
 
-    <div id="miniMap"></div>
+    <div id="upgradesPanel">
+      <h3>Upgrades</h3>
+      <div class="upgrade" data-upgrade="damage">
+        Damage: <span class="value">1</span>
+        <button class="buyBtn">Buy (5 coins)</button>
+      </div>
+      <div class="upgrade" data-upgrade="bulletSpeed">
+        Bullet Speed: <span class="value">1</span>
+        <button class="buyBtn">Buy (5 coins)</button>
+      </div>
+      <div class="upgrade" data-upgrade="health">
+        Health: <span class="value">100</span>
+        <button class="buyBtn">Buy (10 coins)</button>
+      </div>
+      <div class="upgrade" data-upgrade="regen">
+        Regen: <span class="value">0.01</span>
+        <button class="buyBtn">Buy (10 coins)</button>
+      </div>
+      <div class="upgrade" data-upgrade="reloadSpeed">
+        Reload Speed: <span class="value">300 ms</span>
+        <button class="buyBtn">Buy (10 coins)</button>
+      </div>
+    </div>
+
+    <div id="minimap"></div>
+
+    <div id="coinsDisplay">Coins: 0</div>
+
+    <div id="autofireToggle">Autofire: OFF (Press E)</div>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>
 </html>

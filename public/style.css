@@ -1,185 +1,129 @@
-/* Reset */
+/* Reset and basics */
 * {
-  margin: 0; padding: 0; box-sizing: border-box; user-select: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+body {
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a33 100%);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+  color: white;
 }
 
-/* Main Menu */
-.menu {
-  width: 400px;
-  margin: 60px auto;
-  text-align: center;
-  background: rgba(20, 20, 20, 0.9);
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 0 15px #00bfff;
-  color: #00bfff;
-}
-
-.menu h1 {
-  font-size: 3em;
-  margin-bottom: 20px;
-  text-shadow: 0 0 8px #00bfff;
-}
-
-.menu input {
-  width: 90%;
-  font-size: 1.1em;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  outline: none;
-  margin-bottom: 20px;
-}
-
-.menu button {
-  width: 50%;
-  background: #00bfff;
-  color: #000;
-  font-weight: bold;
-  padding: 12px;
-  font-size: 1.2em;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.menu button:hover {
-  background: #0080ff;
-}
-
-.menu .hint {
-  margin-top: 15px;
-  font-size: 0.9em;
-  color: #777;
-}
-
-/* Game Canvas */
+/* Canvas styles */
 #gameCanvas {
-  background: #222;
   display: block;
-  margin: 10px auto;
+  margin: 20px auto;
+  background: #0a0a1f url('https://i.imgur.com/LR8ehM6.png') repeat; /* subtle grid background */
+  border: 2px solid #333;
   border-radius: 12px;
-  box-shadow: 0 0 15px #00bfff;
-  position: relative;
+  box-shadow: 0 0 20px #0af;
 }
 
-/* Game UI */
-#gameUI {
-  width: 900px;
-  margin: 0 auto;
+/* UI Container */
+#ui {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 350px;
+  color: #eee;
+  text-shadow: 0 0 5px #00f;
+}
+
+/* Leaderboard */
+#leaderboard {
+  background: rgba(0,0,0,0.4);
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+#leaderboard h3 {
+  margin-bottom: 10px;
+  font-size: 20px;
+  text-align: center;
+}
+#leaderboard ul {
+  list-style: none;
+}
+#leaderboard ul li {
+  padding: 6px 8px;
+  border-bottom: 1px solid #00aaffaa;
+  font-size: 16px;
   display: flex;
   justify-content: space-between;
-  padding: 0 10px 20px 10px;
-  color: #00bfff;
-  text-shadow: 0 0 6px #00bfff;
-  font-weight: 600;
 }
 
-/* Stats Panel */
-#statsPanel {
-  width: 250px;
-  background: rgba(0, 0, 50, 0.7);
-  border-radius: 12px;
+/* Upgrades Panel */
+#upgradesPanel {
+  background: rgba(0,0,0,0.5);
+  border-radius: 10px;
   padding: 15px;
-  box-shadow: 0 0 12px #004080;
+  margin-bottom: 20px;
 }
-
-/* Upgrade Panel */
-#upgradePanel {
-  width: 300px;
-  background: rgba(0, 0, 50, 0.7);
-  border-radius: 12px;
-  padding: 15px;
-  box-shadow: 0 0 12px #004080;
-}
-
-#upgradePanel h3 {
+#upgradesPanel h3 {
+  margin-bottom: 10px;
+  font-size: 20px;
   text-align: center;
-  margin-bottom: 12px;
-  font-weight: 700;
-  color: #00ffff;
 }
-
 .upgrade {
   display: flex;
   justify-content: space-between;
-  margin: 8px 0;
-  font-size: 1.1em;
   align-items: center;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #ccf;
 }
-
-.upgrade button {
-  background: #00bfff;
+.upgrade .buyBtn {
+  background: #00aaff;
   border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
-  color: #000;
   transition: background 0.3s;
 }
-
-.upgrade button:hover {
-  background: #0080ff;
+.upgrade .buyBtn:hover {
+  background: #0077cc;
 }
 
-/* Leaderboard Panel */
-#leaderboardPanel {
-  width: 250px;
-  background: rgba(0, 0, 50, 0.7);
-  border-radius: 12px;
-  padding: 15px;
-  box-shadow: 0 0 12px #004080;
-}
-
-#leaderboardPanel h3 {
-  text-align: center;
-  margin-bottom: 12px;
-  font-weight: 700;
-  color: #00ffff;
-}
-
-#leaderboardList {
-  list-style: none;
-  font-size: 1.1em;
-}
-
-#leaderboardList li {
-  margin: 6px 0;
-  padding: 6px;
-  border-bottom: 1px solid #0080ff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Mini Map */
-#miniMap {
+/* Minimap */
+#minimap {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  width: 220px;
-  height: 140px;
-  background: rgba(0, 0, 50, 0.7);
-  border-radius: 12px;
-  box-shadow: 0 0 15px #00bfff;
-  overflow: hidden;
-  z-index: 1000;
-  cursor: default;
-  user-select: none;
+  width: 180px;
+  height: 120px;
+  background: rgba(0,0,0,0.7);
+  border: 2px solid #00aaff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px #00aaffaa;
 }
 
-/* Tooltip */
-.tooltip {
-  position: absolute;
-  background: rgba(0,0,0,0.7);
-  color: #0ff;
-  padding: 4px 8px;
-  border-radius: 6px;
-  pointer-events: none;
-  font-size: 0.9em;
-  font-weight: 700;
-  white-space: nowrap;
+/* Coins Display */
+#coinsDisplay {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 15px;
+  text-shadow: 0 0 10px #ffea00;
+}
+
+/* Autofire Toggle */
+#autofireToggle {
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  color: #55ff55;
+  user-select: none;
+  margin-bottom: 10px;
+}
+
+/* Tooltip for upgrades (optional) */
+.upgrade:hover {
+  color: #88ccff;
+  cursor: help;
 }
