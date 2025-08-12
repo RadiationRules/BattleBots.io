@@ -1,88 +1,53 @@
 (() => {
-  // --- Setup Canvas ---
+  const socket = io();
+
+  // --- Canvas setup ---
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const WIDTH = canvas.width;
   const HEIGHT = canvas.height;
 
-  // --- Game constants ---
-  const MAP_WIDTH = 2000;
-  const MAP_HEIGHT = 1400;
+  const MAP_WIDTH = 2200;
+  const MAP_HEIGHT = 1600;
 
-  // Player constants
-  const PLAYER_RADIUS = 30;
-  const PLAYER_MAX_HEALTH_BASE = 100;
-  const PLAYER_REGEN_BASE = 0.01;
-  const PLAYER_SPEED_BASE = 4;
-  const PLAYER_DAMAGE_BASE = 20;
-  const PROJECTILE_SPEED_BASE = 12;
-  const SHOOT_COOLDOWN_BASE = 300; // ms
+  // Entities
+  let players = {};
+  let bots = {};
+  let projectiles = {};
+  let coins = {};
 
-  // Bot constants
-  const BOT_RADIUS = 30;
-  const BOT_SPEED = 2;
-  const BOT_SHOOT_COOLDOWN = 1200; // bots shoot slower than player (nerfed 50%)
+  // Local player
+  let playerId = null;
+  let player = null;
 
-  // Coin constants
-  const COIN_RADIUS = 12;
-  const CHEST_COINS = [10, 25];
+  // Camera offset
+  let cameraX = 0;
+  let cameraY = 0;
 
-  // Upgrade costs
-  const UPGRADE_COSTS = {
-    damage: 5,
-    bulletSpeed: 5,
-    health: 10,
-    regen: 10,
-    reloadSpeed: 10,
-  };
-
-  // Bot names
-  const BOT_NAMES = [
-    "Sliker", "Tung Sahur", "YourMom", "ZeroCool", "Botinator",
-    "Alpha", "Glitch", "Nano", "Cypher", "MechX", "Shadow", "Vortex"
-  ];
-
-  // --- Game state ---
+  // Input state
   let keys = {};
   let mousePos = { x: WIDTH / 2, y: HEIGHT / 2 };
   let mouseDown = false;
   let autofire = false;
 
-  // Player object
-  let player = {
-    name: '',
-    x: MAP_WIDTH / 2,
-    y: MAP_HEIGHT / 2,
-    radius: PLAYER_RADIUS,
-    health: PLAYER_MAX_HEALTH_BASE,
-    maxHealth: PLAYER_MAX_HEALTH_BASE,
-    speed: PLAYER_SPEED_BASE,
-    damage: PLAYER_DAMAGE_BASE,
-    bulletSpeed: PROJECTILE_SPEED_BASE,
-    shootCooldown: SHOOT_COOLDOWN_BASE,
-    lastShot: 0,
-    regen: PLAYER_REGEN_BASE,
-    score: 0,
-    coins: 0,
-    upgrades: {
-      damage: 0,
-      bulletSpeed: 0,
-      health: 0,
-      regen: 0,
-      reloadSpeed: 0,
-    }
-  };
+  // Game running flag
+  let gameRunning = false;
 
-  // Entities
-  let bots = [];
-  let projectiles = [];
-  let coins = [];
+  // Elements
+  const mainMenu = document.getElementById('mainMenu');
+  const playerNameInput = document.getElementById('playerNameInput');
+  const startGameBtn = document.getElementById('startGameBtn');
 
-  // Camera position for scrolling
-  let cameraX = 0;
-  let cameraY = 0;
+  const leaderboardList = document.querySelector('#leaderboard ul');
+  const coinsDisplay = document.getElementById('coinsDisplay');
+  const autofireToggle = document.getElementById('autofireToggle');
+  const popupMessage = document.getElementById('popupMessage');
+  const popupText = document.getElementById('popupText');
+  const popupCloseBtn = popupMessage.querySelector('.closeBtn');
+  const debugOverlay = document.getElementById('debugOverlay');
+  const upgradesPanel = document.getElementById('upgradesPanel');
 
-  // --- Utility functions ---
+  // --- Utility ---
   function distance(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
@@ -91,69 +56,378 @@
     return Math.min(Math.max(value, min), max);
   }
 
-  function randomRange(min, max) {
-    return Math.random() * (max - min) + min;
+  function lerp(a,b,t) {
+    return a + (b - a) * t;
   }
 
   function angleBetween(a, b) {
     return Math.atan2(b.y - a.y, b.x - a.x);
   }
 
-  // --- Create Bots ---
-  function createBot() {
-    return {
-      id: crypto.randomUUID(),
-      name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)],
-      x: randomRange(BOT_RADIUS, MAP_WIDTH - BOT_RADIUS),
-      y: randomRange(BOT_RADIUS, MAP_HEIGHT - BOT_RADIUS),
-      radius: BOT_RADIUS,
-      health: 100,
-      maxHealth: 100,
-      speed: BOT_SPEED,
-      angle: Math.random() * Math.PI * 2,
-      lastShot: 0,
-      shootCooldown: BOT_SHOOT_COOLDOWN,
-      damage: player.damage * 0.5, // Nerfed damage for bots
-      bulletSpeed: player.bulletSpeed * 0.75,
-      targetAngle: 0,
-      isDead: false,
-    };
+  // --- Draw functions ---
+  function drawPlayer(p, isLocal = false) {
+    const screenX = p.x - cameraX;
+    const screenY = p.y - cameraY;
+
+    // Draw shadow/glow
+    ctx.shadowColor = isLocal ? '#00ffff' : '#0055ff';
+    ctx.shadowBlur = 14;
+
+    // Body circle with gradient (3D style)
+    let grad = ctx.createRadialGradient(screenX, screenY, p.radius * 0.3, screenX, screenY, p.radius);
+    grad.addColorStop(0, isLocal ? '#00ffff' : '#3399ff');
+    grad.addColorStop(1, isLocal ? '#004455' : '#002244');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, p.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Health bar
+    const hpWidth = p.radius * 2;
+    const hpHeight = 6;
+    const hpX = screenX - p.radius;
+    const hpY = screenY - p.radius - 16;
+
+    ctx.fillStyle = 'rgba(255,0,0,0.7)';
+    ctx.fillRect(hpX, hpY, hpWidth, hpHeight);
+    ctx.fillStyle = 'limegreen';
+    ctx.fillRect(hpX, hpY, hpWidth * (p.health / p.maxHealth), hpHeight);
+    ctx.strokeStyle = '#0008';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(hpX, hpY, hpWidth, hpHeight);
+
+    // Draw turret direction line
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(screenX, screenY);
+    ctx.lineTo(screenX + Math.cos(p.angle) * p.radius * 1.4, screenY + Math.sin(p.angle) * p.radius * 1.4);
+    ctx.stroke();
+
+    // Draw name above
+    ctx.font = 'bold 18px Segoe UI';
+    ctx.fillStyle = '#00ffff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000a';
+    ctx.shadowBlur = 4;
+    ctx.fillText(p.name, screenX, hpY - 8);
+
+    ctx.shadowBlur = 0;
   }
 
-  // Spawn initial bots
-  for (let i = 0; i < 10; i++) bots.push(createBot());
+  function drawBot(bot) {
+    const screenX = bot.x - cameraX;
+    const screenY = bot.y - cameraY;
 
-  // --- Create Coins ---
-  function createCoin(x, y, value = 1) {
-    return {
-      id: crypto.randomUUID(),
-      x,
-      y,
-      radius: COIN_RADIUS,
-      value,
-      isChest: value > 1,
-    };
+    // Draw shadow/glow
+    ctx.shadowColor = '#ff4400';
+    ctx.shadowBlur = 14;
+
+    // Body circle with gradient (3D style)
+    let grad = ctx.createRadialGradient(screenX, screenY, bot.radius * 0.3, screenX, screenY, bot.radius);
+    grad.addColorStop(0, '#ff6600');
+    grad.addColorStop(1, '#662200');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, bot.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Saw blade rotating
+    ctx.save();
+    ctx.translate(screenX, screenY);
+    ctx.rotate(bot.sawAngle);
+    ctx.strokeStyle = '#ffbb44';
+    ctx.lineWidth = 4;
+    for(let i=0; i<6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(bot.radius * 1.4, 0);
+      ctx.stroke();
+      ctx.rotate(Math.PI / 3);
+    }
+    ctx.restore();
+
+    // Health bar
+    const hpWidth = bot.radius * 2;
+    const hpHeight = 6;
+    const hpX = screenX - bot.radius;
+    const hpY = screenY - bot.radius - 16;
+
+    ctx.fillStyle = 'rgba(255,0,0,0.7)';
+    ctx.fillRect(hpX, hpY, hpWidth, hpHeight);
+    ctx.fillStyle = 'limegreen';
+    ctx.fillRect(hpX, hpY, hpWidth * (bot.health / bot.maxHealth), hpHeight);
+    ctx.strokeStyle = '#0008';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(hpX, hpY, hpWidth, hpHeight);
+
+    // Name above
+    ctx.font = 'bold 16px Segoe UI';
+    ctx.fillStyle = '#ffbb00';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000a';
+    ctx.shadowBlur = 4;
+    ctx.fillText(bot.name, screenX, hpY - 8);
+
+    ctx.shadowBlur = 0;
   }
 
-  // Spawn some initial coins randomly
-  for (let i = 0; i < 20; i++) {
-    coins.push(createCoin(randomRange(COIN_RADIUS, MAP_WIDTH - COIN_RADIUS), randomRange(COIN_RADIUS, MAP_HEIGHT - COIN_RADIUS), 1));
+  function drawProjectile(p) {
+    const screenX = p.x - cameraX;
+    const screenY = p.y - cameraY;
+
+    ctx.fillStyle = 'cyan';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 6;
+
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
   }
 
-  // Spawn some chests (10 or 25 coins)
-  for (let i = 0; i < 5; i++) {
-    const chestValue = CHEST_COINS[Math.floor(Math.random() * CHEST_COINS.length)];
-    coins.push(createCoin(randomRange(COIN_RADIUS, MAP_WIDTH - COIN_RADIUS), randomRange(COIN_RADIUS, MAP_HEIGHT - COIN_RADIUS), chestValue));
+  function drawCoin(c) {
+    const screenX = c.x - cameraX;
+    const screenY = c.y - cameraY;
+
+    ctx.shadowColor = '#ffd500';
+    ctx.shadowBlur = 16;
+
+    ctx.fillStyle = c.isChest ? 'orange' : 'gold';
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, c.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Coin shine
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(screenX - c.radius / 2, screenY - c.radius / 3);
+    ctx.lineTo(screenX + c.radius / 3, screenY + c.radius / 2);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
   }
 
-  // --- Input handling ---
-  window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-    if(e.key.toLowerCase() === 'e') autofire = !autofire;
+  function drawMinimap() {
+    const miniMap = document.getElementById('minimap');
+    const mmCtx = miniMap.getContext ? miniMap.getContext('2d') : null;
+
+    if(!mmCtx) {
+      // Create canvas inside minimap div on first call
+      miniMap.innerHTML = '<canvas width="200" height="140" style="border-radius:14px;"></canvas>';
+      return;
+    }
+
+    mmCtx.clearRect(0,0,miniMap.width, miniMap.height);
+
+    const scaleX = miniMap.width / MAP_WIDTH;
+    const scaleY = miniMap.height / MAP_HEIGHT;
+
+    // Background transparent rect
+    mmCtx.fillStyle = 'rgba(10,30,70,0.8)';
+    mmCtx.fillRect(0, 0, miniMap.width, miniMap.height);
+
+    // Draw coins
+    for(let cid in coins) {
+      const c = coins[cid];
+      mmCtx.fillStyle = c.isChest ? 'orange' : 'gold';
+      mmCtx.beginPath();
+      mmCtx.arc(c.x * scaleX, c.y * scaleY, 4, 0, Math.PI*2);
+      mmCtx.fill();
+    }
+
+    // Draw bots
+    for(let bid in bots) {
+      const b = bots[bid];
+      mmCtx.fillStyle = '#ff5500';
+      mmCtx.beginPath();
+      mmCtx.arc(b.x * scaleX, b.y * scaleY, 6, 0, Math.PI*2);
+      mmCtx.fill();
+    }
+
+    // Draw players
+    for(let pid in players) {
+      const pl = players[pid];
+      mmCtx.fillStyle = pid === playerId ? '#00ffff' : '#3399ff';
+      mmCtx.beginPath();
+      mmCtx.arc(pl.x * scaleX, pl.y * scaleY, 6, 0, Math.PI*2);
+      mmCtx.fill();
+    }
+
+    // Draw player viewport rectangle
+    const viewWidth = WIDTH * scaleX;
+    const viewHeight = HEIGHT * scaleY;
+
+    const viewX = clamp(cameraX * scaleX, 0, miniMap.width - viewWidth);
+    const viewY = clamp(cameraY * scaleY, 0, miniMap.height - viewHeight);
+
+    mmCtx.strokeStyle = '#00ffff';
+    mmCtx.lineWidth = 2;
+    mmCtx.strokeRect(viewX, viewY, viewWidth, viewHeight);
+  }
+
+  // --- Game update ---
+  function update(deltaTime) {
+    if(!player) return;
+
+    // Move player with WASD keys
+    let dx = 0, dy = 0;
+    if(keys['w']) dy -= 1;
+    if(keys['s']) dy += 1;
+    if(keys['a']) dx -= 1;
+    if(keys['d']) dx += 1;
+
+    if(dx !== 0 || dy !== 0) {
+      const length = Math.hypot(dx, dy);
+      dx /= length;
+      dy /= length;
+      player.x = clamp(player.x + dx * player.speed, player.radius, MAP_WIDTH - player.radius);
+      player.y = clamp(player.y + dy * player.speed, player.radius, MAP_HEIGHT - player.radius);
+    }
+
+    // Update player angle toward mouse on screen
+    const targetAngle = Math.atan2(mousePos.y - HEIGHT / 2, mousePos.x - WIDTH / 2);
+    player.angle = targetAngle;
+
+    // Shooting
+    const now = Date.now();
+    if((mouseDown || autofire) && now - player.lastShot >= player.shootCooldown) {
+      socket.emit('shoot');
+      player.lastShot = now;
+    }
+
+    // Health regen
+    player.health = Math.min(player.health + player.regen * deltaTime, player.maxHealth);
+
+    // Send player position and angle to server
+    socket.emit('playerMovement', {x: player.x, y: player.y, angle: player.angle});
+
+    // Camera follows player smoothly
+    cameraX += (player.x - cameraX - WIDTH / 2) * 0.15;
+    cameraY += (player.y - cameraY - HEIGHT / 2) * 0.15;
+
+    // Draw everything
+    draw();
+
+    // Update debug info
+    updateDebug();
+
+    // Update minimap
+    drawMinimap();
+  }
+
+  // --- Draw all ---
+  function draw() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    // Draw background grid for map
+    ctx.fillStyle = '#081020';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    ctx.strokeStyle = '#1a2b4a';
+    ctx.lineWidth = 1;
+    for(let x = -cameraX % 80; x < WIDTH; x += 80) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, HEIGHT);
+      ctx.stroke();
+    }
+    for(let y = -cameraY % 80; y < HEIGHT; y += 80) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(WIDTH, y);
+      ctx.stroke();
+    }
+
+    // Draw coins
+    for(const cid in coins) drawCoin(coins[cid]);
+    // Draw bots
+    for(const bid in bots) drawBot(bots[bid]);
+    // Draw players
+    for(const pid in players) drawPlayer(players[pid], pid === playerId);
+    // Draw projectiles
+    for(const pid in projectiles) drawProjectile(projectiles[pid]);
+  }
+
+  // --- Update debug overlay ---
+  function updateDebug() {
+    if(!player) {
+      debugOverlay.textContent = 'Waiting for game start...';
+      return;
+    }
+    debugOverlay.textContent = [
+      `Player ID: ${playerId}`,
+      `Name: ${player.name}`,
+      `Pos: (${player.x.toFixed(1)}, ${player.y.toFixed(1)})`,
+      `Health: ${player.health.toFixed(1)} / ${player.maxHealth}`,
+      `Coins: ${player.coins}`,
+      `Score: ${player.score}`,
+      `Autofire: ${autofire ? 'ON' : 'OFF'}`,
+      `Upgrades: Damage ${player.upgrades.damage}, BulletSpeed ${player.upgrades.bulletSpeed}, Health ${player.upgrades.health}, Regen ${player.upgrades.regen.toFixed(3)}, ReloadSpeed ${player.upgrades.reloadSpeed}`
+    ].join('\n');
+  }
+
+  // --- Popup Message ---
+  function showPopup(msg) {
+    popupText.textContent = msg;
+    popupMessage.classList.add('show');
+  }
+  function hidePopup() {
+    popupMessage.classList.remove('show');
+  }
+  popupCloseBtn.onclick = hidePopup;
+
+  // --- UI Handlers ---
+  startGameBtn.addEventListener('click', () => {
+    const name = playerNameInput.value.trim();
+    if(name.length < 3) {
+      showPopup('Please enter a name with at least 3 characters.');
+      return;
+    }
+    playerId = socket.id; // We'll update this properly once we get id
+    socket.emit('playerJoined', name);
+    mainMenu.style.display = 'none';
+    gameRunning = true;
   });
+
+  playerNameInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter') {
+      startGameBtn.click();
+      e.preventDefault(); // Prevent form submission or scrolling
+    }
+  });
+
+  // Upgrade buy buttons
+  upgradesPanel.querySelectorAll('.buyBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const upgradeType = btn.parentElement.getAttribute('data-upgrade');
+      socket.emit('buyUpgrade', upgradeType);
+    });
+  });
+
+  // Autofire toggle by pressing E
+  window.addEventListener('keydown', e => {
+    if(e.key.toLowerCase() === 'e') {
+      autofire = !autofire;
+      socket.emit('toggleAutofire');
+      autofireToggle.textContent = `Autofire: ${autofire ? 'ON' : 'OFF'} (Press E)`;
+    }
+    keys[e.key.toLowerCase()] = true;
+  });
+
   window.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
   });
+
+  // Track mouse
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     mousePos.x = e.clientX - rect.left;
@@ -166,513 +440,111 @@
     mouseDown = false;
   });
 
-  // --- Game Logic ---
-  function updatePlayer(dt) {
-    let dx = 0, dy = 0;
-    if (keys['w']) dy -= 1;
-    if (keys['s']) dy += 1;
-    if (keys['a']) dx -= 1;
-    if (keys['d']) dx += 1;
+  // --- Socket listeners ---
+  socket.on('init', data => {
+    players = data.players;
+    bots = data.bots;
+    coins = data.coins;
+    projectiles = data.projectiles;
+    playerId = socket.id;
+    player = players[playerId];
+  });
 
-    // Normalize movement vector
-    if(dx !== 0 || dy !== 0) {
-      const len = Math.hypot(dx, dy);
-      dx /= len;
-      dy /= len;
-    }
+  socket.on('newPlayer', p => {
+    players[p.id] = p;
+  });
 
-    player.x += dx * player.speed;
-    player.y += dy * player.speed;
+  socket.on('removePlayer', id => {
+    delete players[id];
+  });
 
-    // Clamp inside map
-    player.x = clamp(player.x, player.radius, MAP_WIDTH - player.radius);
-    player.y = clamp(player.y, player.radius, MAP_HEIGHT - player.radius);
+  socket.on('updatePlayers', data => {
+    players = data;
+    player = players[playerId];
+  });
 
-    // Update angle toward mouse position relative to camera
-    player.angle = angleBetween(player, {x: mousePos.x + cameraX, y: mousePos.y + cameraY});
+  socket.on('updateBots', data => {
+    bots = data;
+  });
 
-    // Health regen
-    player.health = Math.min(player.health + player.regen, player.maxHealth);
-  }
+  socket.on('updateProjectiles', data => {
+    projectiles = data;
+  });
 
-  function shootProjectile(owner, x, y, angle, damage, speed) {
-    projectiles.push({
-      id: crypto.randomUUID(),
-      owner,
-      x,
-      y,
-      angle,
-      damage,
-      speed,
-      radius: 6,
-    });
-  }
+  socket.on('newProjectile', p => {
+    projectiles[p.id] = p;
+  });
 
-  function updateProjectiles(dt) {
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-      const p = projectiles[i];
-      p.x += Math.cos(p.angle) * p.speed;
-      p.y += Math.sin(p.angle) * p.speed;
+  socket.on('removeProjectile', id => {
+    delete projectiles[id];
+  });
 
-      // Remove if off map
-      if (p.x < 0 || p.x > MAP_WIDTH || p.y < 0 || p.y > MAP_HEIGHT) {
-        projectiles.splice(i,1);
-        continue;
-      }
+  socket.on('updateCoins', data => {
+    coins = data;
+  });
 
-      // Check collision with bots or player
-      if (p.owner !== 'player') {
-        // Bots shoot player only
-        if (distance(p, player) < player.radius + p.radius) {
-          player.health -= p.damage;
-          projectiles.splice(i,1);
-          continue;
-        }
-      } else {
-        // Player shoots bots
-        let hit = false;
-        for (let j = 0; j < bots.length; j++) {
-          const bot = bots[j];
-          if (distance(p, bot) < bot.radius + p.radius) {
-            bot.health -= p.damage;
-            if(bot.health <= 0){
-              player.score += 10;
-              player.coins += bot.radius; // coins reward based on bot size
-              // Spawn coins at bot position
-              let chestValue = (Math.random() < 0.2) ? 25 : 1;
-              coins.push(createCoin(bot.x, bot.y, chestValue));
-              // Respawn bot
-              bots[j] = createBot();
-            }
-            projectiles.splice(i,1);
-            hit = true;
-            break;
-          }
-        }
-        if(hit) continue;
-      }
-    }
-  }
+  socket.on('removeCoin', id => {
+    delete coins[id];
+  });
 
-  // Bot AI logic: move randomly & shoot player if close
-  function updateBots(dt) {
-    bots.forEach(bot => {
-      if(bot.isDead) return;
-
-      // Move bot in current angle
-      bot.x += Math.cos(bot.angle) * bot.speed;
-      bot.y += Math.sin(bot.angle) * bot.speed;
-
-      // Bounce on edges
-      if(bot.x < bot.radius) bot.angle = Math.PI - bot.angle;
-      if(bot.x > MAP_WIDTH - bot.radius) bot.angle = Math.PI - bot.angle;
-      if(bot.y < bot.radius) bot.angle = -bot.angle;
-      if(bot.y > MAP_HEIGHT - bot.radius) bot.angle = -bot.angle;
-
-      // Slowly rotate saw angle for fun
-      bot.sawAngle = (bot.sawAngle || 0) + 0.15;
-
-      // Slowly regen health
-      bot.health = Math.min(bot.health + 0.02, bot.maxHealth);
-
-      // Rotate randomly a bit
-      bot.angle += (Math.random() - 0.5) * 0.2;
-
-      // Shoot at player if in range & cooldown done
-      const distToPlayer = distance(bot, player);
-      if(distToPlayer < 500){
-        const now = performance.now();
-        if(!bot.lastShot) bot.lastShot = 0;
-        if(now - bot.lastShot > bot.shootCooldown){
-          bot.lastShot = now;
-          const bulletX = bot.x + Math.cos(bot.angle) * (bot.radius + 8);
-          const bulletY = bot.y + Math.sin(bot.angle) * (bot.radius + 8);
-          shootProjectile('bot', bulletX, bulletY, bot.angle, bot.damage, bot.bulletSpeed);
-        }
-      }
-    });
-  }
-
-  // Coins pickup
-  function checkCoinPickups(){
-    for(let i=coins.length-1; i>=0; i--){
-      if(distance(coins[i], player) < player.radius + coins[i].radius){
-        player.coins += coins[i].value;
-        player.score += coins[i].value * 5;
-        coins.splice(i,1);
-      }
-    }
-  }
-
-  // --- Upgrade system ---
-  function updateUpgradesUI(){
-    const panel = document.getElementById('upgradesPanel');
-    for(let div of panel.querySelectorAll('.upgrade')){
-      const type = div.dataset.upgrade;
-      let valSpan = div.querySelector('.value');
-      if(type === 'damage'){
-        valSpan.textContent = (player.damage).toFixed(1);
-      } else if(type === 'bulletSpeed'){
-        valSpan.textContent = (player.bulletSpeed).toFixed(1);
-      } else if(type === 'health'){
-        valSpan.textContent = player.maxHealth.toFixed(0);
-      } else if(type === 'regen'){
-        valSpan.textContent = player.regen.toFixed(3);
-      } else if(type === 'reloadSpeed'){
-        valSpan.textContent = (player.shootCooldown).toFixed(0) + ' ms';
-      }
-    }
-  }
-  function buyUpgrade(type){
-    const cost = UPGRADE_COSTS[type];
-    if(player.coins < cost) return alert('Not enough coins!');
-    player.coins -= cost;
-    player.upgrades[type]++;
-    if(type === 'damage') player.damage += 2;
-    else if(type === 'bulletSpeed') player.bulletSpeed += 2;
-    else if(type === 'health'){
-      player.maxHealth += 20;
-      player.health += 20;
-    }
-    else if(type === 'regen') player.regen += 0.005;
-    else if(type === 'reloadSpeed') player.shootCooldown = Math.max(50, player.shootCooldown - 30);
-    updateUpgradesUI();
-    updateCoinsDisplay();
-  }
-
-  // --- Leaderboard ---
-  function updateLeaderboard(){
-    const lb = document.querySelector('#leaderboard ul');
-    // Gather all players + bots sorted by score
-    let entries = [{name: player.name || "You", score: player.score, coins: player.coins}];
-    bots.forEach(bot => {
-      entries.push({name: bot.name, score: bot.health < 1 ? 0 : Math.round(bot.health), coins: 0});
-    });
-    entries.sort((a,b)=>b.score - a.score);
-    entries = entries.slice(0,5);
-
-    lb.innerHTML = '';
-    entries.forEach(entry => {
+  socket.on('leaderboard', topPlayers => {
+    leaderboardList.innerHTML = '';
+    topPlayers.forEach(p => {
       const li = document.createElement('li');
-      li.textContent = `${entry.name}`;
-      const spanScore = document.createElement('span');
-      spanScore.textContent = `Score: ${entry.score} | Coins: ${entry.coins}`;
-      li.appendChild(spanScore);
-      lb.appendChild(li);
+      li.textContent = `${p.name} - Score: ${p.score} - Coins: ${p.coins}`;
+      leaderboardList.appendChild(li);
     });
-  }
+  });
 
-  // --- Camera handling ---
-  function updateCamera(){
-    cameraX = clamp(player.x - WIDTH/2, 0, MAP_WIDTH - WIDTH);
-    cameraY = clamp(player.y - HEIGHT/2, 0, MAP_HEIGHT - HEIGHT);
-  }
-
-  // --- Draw functions ---
-  function drawMap(){
-    ctx.fillStyle = '#111133';
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    // Draw grid lines every 100 px
-    ctx.strokeStyle = '#223366';
-    ctx.lineWidth = 1;
-    for(let x= -cameraX % 100; x < WIDTH; x+=100){
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, HEIGHT);
-      ctx.stroke();
+  socket.on('upgradeSuccess', upgrades => {
+    if(player) {
+      player.upgrades = upgrades;
+      // Update upgrade UI values
+      upgradesPanel.querySelectorAll('.upgrade').forEach(div => {
+        const key = div.getAttribute('data-upgrade');
+        const valSpan = div.querySelector('.value');
+        switch(key) {
+          case 'damage':
+            valSpan.textContent = 1 + upgrades.damage * 3;
+            break;
+          case 'bulletSpeed':
+            valSpan.textContent = 1 + upgrades.bulletSpeed * 1.5;
+            break;
+          case 'health':
+            valSpan.textContent = 100 + upgrades.health * 20;
+            break;
+          case 'regen':
+            valSpan.textContent = (0.01 + upgrades.regen * 0.005).toFixed(3);
+            break;
+          case 'reloadSpeed':
+            valSpan.textContent = (300 - upgrades.reloadSpeed * 40) + ' ms';
+            break;
+        }
+      });
     }
-    for(let y= -cameraY % 100; y < HEIGHT; y+=100){
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WIDTH, y);
-      ctx.stroke();
-    }
-  }
+  });
 
-  function drawPlayer(){
-    const screenX = player.x - cameraX;
-    const screenY = player.y - cameraY;
+  socket.on('playerDied', () => {
+    showPopup('You have died and respawned!');
+    setTimeout(hidePopup, 4000);
+  });
 
-    // Body
-    ctx.save();
-    ctx.translate(screenX, screenY);
-    ctx.rotate(player.angle);
-
-    ctx.fillStyle = '#3498db';
-    ctx.beginPath();
-    ctx.arc(0, 0, player.radius, 0, Math.PI*2);
-    ctx.fill();
-
-    // Eyes
-    ctx.fillStyle = 'white';
-    ctx.beginPath();
-    ctx.arc(player.radius/3, -player.radius/3, player.radius/6, 0, Math.PI*2);
-    ctx.arc(player.radius/3, player.radius/3, player.radius/6, 0, Math.PI*2);
-    ctx.fill();
-
-    // Pupil
-    ctx.fillStyle = 'black';
-    ctx.beginPath();
-    ctx.arc(player.radius/3 + 2, -player.radius/3, player.radius/10, 0, Math.PI*2);
-    ctx.arc(player.radius/3 + 2, player.radius/3, player.radius/10, 0, Math.PI*2);
-    ctx.fill();
-
-    // Saw blade on top
-    ctx.strokeStyle = '#f39c12';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(0, 0, player.radius + 8, 0, Math.PI*2);
-    ctx.stroke();
-
-    ctx.restore();
-
-    // Health bar
-    const barWidth = 60;
-    const barHeight = 8;
-    const healthRatio = player.health / player.maxHealth;
-    ctx.fillStyle = 'black';
-    ctx.fillRect(screenX - barWidth/2, screenY + player.radius + 10, barWidth, barHeight);
-    ctx.fillStyle = `rgb(${255 - healthRatio*255},${healthRatio*255},0)`;
-    ctx.fillRect(screenX - barWidth/2, screenY + player.radius + 10, barWidth * healthRatio, barHeight);
-  }
-
-  function drawBots(){
-    bots.forEach(bot => {
-      if(bot.health <= 0) return;
-
-      const screenX = bot.x - cameraX;
-      const screenY = bot.y - cameraY;
-
-      ctx.save();
-      ctx.translate(screenX, screenY);
-      ctx.rotate(bot.angle);
-
-      // Body
-      ctx.fillStyle = '#e67e22';
-      ctx.beginPath();
-      ctx.arc(0, 0, bot.radius, 0, Math.PI*2);
-      ctx.fill();
-
-      // Eyes
-      ctx.fillStyle = 'white';
-      ctx.beginPath();
-      ctx.arc(bot.radius/3, -bot.radius/3, bot.radius/6, 0, Math.PI*2);
-      ctx.arc(bot.radius/3, bot.radius/3, bot.radius/6, 0, Math.PI*2);
-      ctx.fill();
-
-      // Pupils
-      ctx.fillStyle = 'black';
-      ctx.beginPath();
-      ctx.arc(bot.radius/3 + 2, -bot.radius/3, bot.radius/10, 0, Math.PI*2);
-      ctx.arc(bot.radius/3 + 2, bot.radius/3, bot.radius/10, 0, Math.PI*2);
-      ctx.fill();
-
-      // Name label
-      ctx.fillStyle = 'white';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(bot.name, 0, -bot.radius - 12);
-
-      // Saw blade rotating
-      ctx.strokeStyle = '#f39c12';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      const sawRadius = bot.radius + 8;
-      const sawCount = 12;
-      for(let i=0; i < sawCount; i++){
-        const angle = i * (Math.PI * 2 / sawCount) + (bot.sawAngle || 0);
-        const x = Math.cos(angle) * sawRadius;
-        const y = Math.sin(angle) * sawRadius;
-        ctx.lineTo(x,y);
-      }
-      ctx.closePath();
-      ctx.stroke();
-
-      ctx.restore();
-
-      // Health bar
-      const barWidth = 50;
-      const barHeight = 6;
-      const healthRatio = bot.health / bot.maxHealth;
-      ctx.fillStyle = 'black';
-      ctx.fillRect(screenX - barWidth/2, screenY + bot.radius + 8, barWidth, barHeight);
-      ctx.fillStyle = `rgb(${255 - healthRatio*255},${healthRatio*255},0)`;
-      ctx.fillRect(screenX - barWidth/2, screenY + bot.radius + 8, barWidth * healthRatio, barHeight);
-    });
-  }
-
-  function drawProjectiles(){
-    projectiles.forEach(p => {
-      const screenX = p.x - cameraX;
-      const screenY = p.y - cameraY;
-      ctx.save();
-      ctx.translate(screenX, screenY);
-      ctx.rotate(p.angle);
-      ctx.fillStyle = '#00ffff';
-      ctx.beginPath();
-      ctx.rect(-p.radius/2, -p.radius/2, p.radius*2, p.radius);
-      ctx.fill();
-      ctx.restore();
-    });
-  }
-
-  function drawCoins(){
-    coins.forEach(c => {
-      const screenX = c.x - cameraX;
-      const screenY = c.y - cameraY;
-      ctx.fillStyle = c.isChest ? '#ffcc00' : '#ffff55';
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, c.radius, 0, Math.PI*2);
-      ctx.fill();
-
-      if(c.isChest){
-        ctx.strokeStyle = '#aa8800';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-    });
-  }
-
-  // --- Minimap ---
-  const minimap = document.getElementById('minimap');
-  const minimapWidth = minimap.clientWidth;
-  const minimapHeight = minimap.clientHeight;
-  function drawMinimap(){
-    const mmCtx = minimap.getContext('2d');
-    if(!mmCtx) return;
-    mmCtx.clearRect(0,0,minimapWidth,minimapHeight);
-
-    // Background
-    mmCtx.fillStyle = 'rgba(0,0,0,0.7)';
-    mmCtx.fillRect(0,0,minimapWidth,minimapHeight);
-
-    // Scale ratios
-    const scaleX = minimapWidth / MAP_WIDTH;
-    const scaleY = minimapHeight / MAP_HEIGHT;
-
-    // Draw coins
-    coins.forEach(c => {
-      mmCtx.fillStyle = c.isChest ? '#ffcc00' : '#ffff55';
-      mmCtx.beginPath();
-      mmCtx.arc(c.x * scaleX, c.y * scaleY, 3, 0, Math.PI*2);
-      mmCtx.fill();
-    });
-
-    // Draw bots
-    bots.forEach(bot => {
-      mmCtx.fillStyle = 'orange';
-      mmCtx.beginPath();
-      mmCtx.arc(bot.x * scaleX, bot.y * scaleY, 4, 0, Math.PI*2);
-      mmCtx.fill();
-    });
-
-    // Draw player
-    mmCtx.fillStyle = '#3498db';
-    mmCtx.beginPath();
-    mmCtx.arc(player.x * scaleX, player.y * scaleY, 5, 0, Math.PI*2);
-    mmCtx.fill();
-
-    // Outline player radius
-    mmCtx.strokeStyle = 'white';
-    mmCtx.lineWidth = 1;
-    mmCtx.beginPath();
-    mmCtx.arc(player.x * scaleX, player.y * scaleY, 6, 0, Math.PI*2);
-    mmCtx.stroke();
-  }
-
-  // --- UI updates ---
-  const coinsDisplay = document.getElementById('coinsDisplay');
-  const autofireToggle = document.getElementById('autofireToggle');
-
-  function updateCoinsDisplay(){
-    coinsDisplay.textContent = `Coins: ${player.coins}`;
-  }
-
-  function updateAutofireToggle(){
+  socket.on('autofireStatus', status => {
+    autofire = status;
     autofireToggle.textContent = `Autofire: ${autofire ? 'ON' : 'OFF'} (Press E)`;
-    autofireToggle.style.color = autofire ? '#55ff55' : '#ff5555';
-  }
+  });
 
-  // --- Main Loop ---
+  // --- Main loop ---
   let lastTime = 0;
-  function gameLoop(timestamp){
-    const dt = (timestamp - lastTime)/1000 || 0;
+  function gameLoop(timestamp=0) {
+    if(!lastTime) lastTime = timestamp;
+    const deltaTime = (timestamp - lastTime) / 16.666;
     lastTime = timestamp;
 
-    // Update
-    updatePlayer(dt);
-    updateBots(dt);
-    updateProjectiles(dt);
-    checkCoinPickups();
-
-    // Autofire
-    if(autofire && (timestamp - player.lastShot) > player.shootCooldown){
-      player.lastShot = timestamp;
-      const bulletX = player.x + Math.cos(player.angle) * (player.radius + 8);
-      const bulletY = player.y + Math.sin(player.angle) * (player.radius + 8);
-      shootProjectile('player', bulletX, bulletY, player.angle, player.damage, player.bulletSpeed);
-    }
-
-    updateCamera();
-
-    // Draw
-    drawMap();
-    drawCoins();
-    drawBots();
-    drawPlayer();
-    drawProjectiles();
-
-    updateLeaderboard();
-    updateCoinsDisplay();
-    updateAutofireToggle();
-    drawMinimap();
+    if(gameRunning) update(deltaTime);
 
     requestAnimationFrame(gameLoop);
   }
 
-  // --- Leaderboard UI DOM ---
-  const leaderboardUL = document.querySelector('#leaderboard ul');
-  function updateLeaderboard(){
-    // Sort by score descending
-    const entries = [{name: player.name || 'You', score: player.score, coins: player.coins}];
-    bots.forEach(bot => {
-      entries.push({name: bot.name, score: Math.round(bot.health), coins: 0});
-    });
-    entries.sort((a,b) => b.score - a.score);
-    const top = entries.slice(0,5);
-
-    leaderboardUL.innerHTML = '';
-    top.forEach(entry => {
-      const li = document.createElement('li');
-      li.textContent = entry.name;
-      const spanScore = document.createElement('span');
-      spanScore.textContent = `Score: ${entry.score} | Coins: ${entry.coins}`;
-      li.appendChild(spanScore);
-      leaderboardUL.appendChild(li);
-    });
-  }
-
-  // --- Handle upgrades buy buttons ---
-  const buyButtons = document.querySelectorAll('#upgradesPanel .buyBtn');
-  buyButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const type = btn.parentElement.dataset.upgrade;
-      buyUpgrade(type);
-    });
-  });
-
-  // --- Player name prompt ---
-  function askPlayerName(){
-    let name = prompt("Enter your BattleBot name:", "GlizzyBot");
-    if(!name || name.trim().length < 2) name = "GlizzyBot";
-    player.name = name.trim().slice(0,15);
-  }
-
-  // Initialize
-  askPlayerName();
-  updateUpgradesUI();
-
-  // Start game loop
   requestAnimationFrame(gameLoop);
 })();
