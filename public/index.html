@@ -1,62 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>BattleBots.io 3D Edition</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="/socket.io/socket.io.js"></script>
-  <script defer src="client.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BattleBots.io</title>
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- Main Menu -->
-  <div id="main-menu" class="menu">
-    <h1>BattleBots.io</h1>
-    <input id="playerNameInput" type="text" placeholder="Enter your name" maxlength="15" />
-    
-    <div class="mode-selection">
-      <label><input type="radio" name="mode" value="free" checked /> Free-for-All</label>
-      <label><input type="radio" name="mode" value="teams" /> Teams (Red vs Blue)</label>
+<div id="main-menu" class="menu active">
+  <h1>BattleBots.io</h1>
+  <input id="name-input" type="text" placeholder="Enter your name" maxlength="12" />
+  <select id="team-select">
+    <option value="neutral">Free For All</option>
+    <option value="red">Red Team</option>
+    <option value="blue">Blue Team</option>
+  </select>
+  <button id="play-btn">Play</button>
+</div>
+
+<div id="game-container" class="hidden">
+  <canvas id="game-canvas" width="900" height="600"></canvas>
+
+  <div id="gui">
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <div id="score-coins">Score: 0 | Coins: 0</div>
+    <button id="auto-fire-btn" title="Toggle Auto Fire (E)">Auto Fire: Off</button>
+    <button id="upgrade-btn">Upgrades</button>
+    <button id="chat-toggle-btn">Chat</button>
+  </div>
+
+  <div id="leaderboard" class="panel">
+    <h3>Leaderboard</h3>
+    <ul id="leaderboard-list"></ul>
+  </div>
+
+  <div id="upgrades-panel" class="panel hidden">
+    <h3>Upgrades</h3>
+    <div class="upgrade-row">
+      <label>Damage</label>
+      <button data-upgrade="damage">Upgrade (10 coins)</button>
     </div>
-    
-    <button id="startGameBtn" class="btn-primary">Play</button>
-
-    <div class="credits">Made with ⚙️ and ❤️ by YourName</div>
-  </div>
-
-  <!-- HUD -->
-  <div id="hud" class="hidden">
-    <div id="scoreCoins">
-      <div>Score: <span id="score">0</span></div>
-      <div>Coins: <span id="coins">0</span></div>
-      <div id="teamScore">Team Score: -</div>
+    <div class="upgrade-row">
+      <label>Bullet Speed</label>
+      <button data-upgrade="bulletSpeed">Upgrade (10 coins)</button>
     </div>
-    <button id="toggleUpgrades" class="btn-secondary">Upgrades ⚙️</button>
-    <button id="toggleChatBtn" class="btn-secondary">Chat 💬</button>
+    <div class="upgrade-row">
+      <label>Health</label>
+      <button data-upgrade="health">Upgrade (10 coins)</button>
+    </div>
+    <div class="upgrade-row">
+      <label>Health Regen</label>
+      <button data-upgrade="healthRegen">Upgrade (10 coins)</button>
+    </div>
+    <div class="upgrade-row">
+      <label>Reload Speed</label>
+      <button data-upgrade="reloadSpeed">Upgrade (10 coins)</button>
+    </div>
+    <button id="close-upgrades">Close</button>
   </div>
 
-  <!-- Upgrades Panel -->
-  <div id="upgradesPanel" class="panel hidden">
-    <h2>Upgrades</h2>
-    <ul>
-      <li>Damage <button data-upgrade="damage" class="upgradeBtn">Upgrade</button></li>
-      <li>Reload Speed <button data-upgrade="reload" class="upgradeBtn">Upgrade</button></li>
-      <li>Max Health <button data-upgrade="health" class="upgradeBtn">Upgrade</button></li>
-      <li>Health Regen <button data-upgrade="regen" class="upgradeBtn">Upgrade</button></li>
-      <li>Coin Bonus <button data-upgrade="coinBonus" class="upgradeBtn">Upgrade</button></li>
-    </ul>
-    <button id="closeUpgrades" class="btn-primary">Close</button>
+  <div id="chat-panel" class="panel hidden">
+    <div id="chat-messages"></div>
+    <input id="chat-input" type="text" placeholder="Type a message and press Enter..." maxlength="150" />
   </div>
+</div>
 
-  <!-- Chat Box -->
-  <div id="chatContainer" class="panel chat-panel hidden">
-    <div id="chatMessages" class="chat-messages"></div>
-    <input id="chatInput" type="text" maxlength="100" placeholder="Type your message and press Enter" />
-  </div>
-
-  <!-- Game Canvas -->
-  <canvas id="gameCanvas"></canvas>
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
 
 </body>
 </html>

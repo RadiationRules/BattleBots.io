@@ -1,524 +1,420 @@
+// client.js
+
 const socket = io();
 
-const canvas = document.getElementById('gameCanvas');
+// Canvas & context
+const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
-const mainMenu = document.getElementById('main-menu');
-const startGameBtn = document.getElementById('startGameBtn');
-const playerNameInput = document.getElementById('playerNameInput');
+// Resize canvas to container
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
-const hud = document.getElementById('hud');
-const scoreEl = document.getElementById('score');
-const coinsEl = document.getElementById('coins');
-const teamScoreEl = document.getElementById('teamScore');
-
-const upgradesPanel = document.getElementById('upgradesPanel');
-const toggleUpgradesBtn = document.getElementById('toggleUpgrades');
-const closeUpgradesBtn = document.getElementById('closeUpgrades');
-const upgradeButtons = [...document.querySelectorAll('.upgradeBtn')];
-
-const chatContainer = document.getElementById('chatContainer');
-const toggleChatBtn = document.getElementById('toggleChatBtn');
-const chatMessages = document.getElementById('chatMessages');
-const chatInput = document.getElementById('chatInput');
-
+// Game state
 let players = {};
 let bots = {};
 let projectiles = {};
 let coins = {};
-
+let leaderboard = [];
 let playerId = null;
-let player = null;
-let gameStarted = false;
+let playerName = null;
 
-const keys = {};
-
-let cameraX = 0;
-let cameraY = 0;
-
-const MAP_WIDTH = 2000;
-const MAP_HEIGHT = 1500;
-
-const lerp = (a, b, t) => a + (b - a) * t;
-
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-
-window.addEventListener('resize', resize);
-resize();
-
-function drawRoundedRect(x, y, w, h, r, fillStyle, strokeStyle, lineWidth = 1) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-  if (fillStyle) {
-    ctx.fillStyle = fillStyle;
-    ctx.fill();
-  }
-  if (strokeStyle) {
-    ctx.strokeStyle = strokeStyle;
-    ctx.lineWidth = lineWidth;
-    ctx.stroke();
-  }
-}
-
-// Draw 3D-ish circle with simple shading
-function draw3DCircle(x, y, radius, color1, color2) {
-  let gradient = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius);
-  gradient.addColorStop(0, color1);
-  gradient.addColorStop(1, color2);
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Draw health bar above entities
-function drawHealthBar(x, y, width, height, healthPercent) {
-  ctx.fillStyle = '#555';
-  ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = healthPercent > 0.5 ? '#27ae60' : healthPercent > 0.25 ? '#f39c12' : '#e74c3c';
-  ctx.fillRect(x, y, width * healthPercent, height);
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, width, height);
-}
-
-// Draw player/bot tank with barrel and saw (bot)
-function drawTank(entity, x, y, isPlayer = false) {
-  // Body circle with 3D shading
-  draw3DCircle(x, y, entity.size, entity.color1, entity.color2);
-
-  // Barrel
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(entity.angle);
-  ctx.fillStyle = '#444';
-  ctx.fillRect(0, -entity.size / 6, entity.size * 1.5, entity.size / 3);
-
-  // Barrel highlight
-  ctx.fillStyle = '#888';
-  ctx.fillRect(5, -entity.size / 8, entity.size * 0.8, entity.size / 8);
-  ctx.restore();
-
-  // Saw blade (for bots)
-  if (!isPlayer) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(entity.sawAngle || 0);
-    ctx.strokeStyle = '#bdc3c7';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 12; i++) {
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(entity.size + 6, 0);
-      ctx.stroke();
-      ctx.rotate(Math.PI / 6);
-    }
-    ctx.restore();
-  }
-
-  // Health bar
-  drawHealthBar(x - entity.size, y - entity.size - 10, entity.size * 2, 6, entity.health / entity.maxHealth);
-
-  // Name
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(entity.name || 'Bot', x, y - entity.size - 20);
-
-  // Team circle outline
-  if (entity.team === 'red') {
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(x, y, entity.size + 4, 0, Math.PI * 2);
-    ctx.stroke();
-  } else if (entity.team === 'blue') {
-    ctx.strokeStyle = '#3498db';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(x, y, entity.size + 4, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}
-
-// Draw projectile with glow
-function drawProjectile(proj) {
-  const glow = ctx.createRadialGradient(proj.x, proj.y, proj.size / 4, proj.x, proj.y, proj.size);
-  glow.addColorStop(0, '#ffcc00');
-  glow.addColorStop(1, '#996600');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(proj.x, proj.y, proj.size, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Draw coin with shine effect
-function drawCoin(coin) {
-  const gradient = ctx.createRadialGradient(coin.x, coin.y, coin.size / 3, coin.x, coin.y, coin.size);
-  gradient.addColorStop(0, '#ffeb3b');
-  gradient.addColorStop(1, '#fbc02d');
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Shine
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(coin.x - coin.size / 3, coin.y - coin.size / 3, coin.size / 1.8, 0, Math.PI * 2);
-  ctx.stroke();
-}
-
-// Camera and smoothing
-function updateCamera() {
-  if (!player) return;
-  const targetX = player.x - canvas.width / 2;
-  const targetY = player.y - canvas.height / 2;
-
-  cameraX = lerp(cameraX, targetX, 0.15);
-  cameraY = lerp(cameraY, targetY, 0.15);
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-// Input handling
+// Input state
 const inputState = {
   up: false,
   down: false,
   left: false,
   right: false,
-  shooting: false,
-  autofire: false,
+  shoot: false,
+  autoShoot: false,
+  mouseX: 0,
+  mouseY: 0,
+  angle: 0,
 };
 
-window.addEventListener('keydown', (e) => {
-  switch (e.key.toLowerCase()) {
-    case 'w':
-    case 'arrowup':
-      inputState.up = true;
-      break;
-    case 's':
-    case 'arrowdown':
-      inputState.down = true;
-      break;
-    case 'a':
-    case 'arrowleft':
-      inputState.left = true;
-      break;
-    case 'd':
-    case 'arrowright':
-      inputState.right = true;
-      break;
-    case ' ':
-      inputState.shooting = true;
-      break;
-    case 'e':
-      inputState.autofire = !inputState.autofire;
-      break;
-  }
-});
+// Smooth movement variables
+let smoothX = 0;
+let smoothY = 0;
+let smoothAngle = 0;
 
-window.addEventListener('keyup', (e) => {
-  switch (e.key.toLowerCase()) {
-    case 'w':
-    case 'arrowup':
-      inputState.up = false;
-      break;
-    case 's':
-    case 'arrowdown':
-      inputState.down = false;
-      break;
-    case 'a':
-    case 'arrowleft':
-      inputState.left = false;
-      break;
-    case 'd':
-    case 'arrowright':
-      inputState.right = false;
-      break;
-    case ' ':
-      inputState.shooting = false;
-      break;
-  }
-});
+// DOM references
+const menuDiv = document.getElementById('menu');
+const nameInput = document.getElementById('name-input');
+const playBtn = document.getElementById('play-btn');
+const healthFill = document.getElementById('health-fill');
+const scoreCoins = document.getElementById('score-coins');
+const leaderboardList = document.getElementById('leaderboard-list');
+const chatPanel = document.getElementById('chat-panel');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const upgradesPanel = document.getElementById('upgrades-panel');
+const openUpgradesBtn = document.getElementById('open-upgrades');
+const closeUpgradesBtn = document.getElementById('close-upgrades');
 
-// Mouse aiming
-canvas.addEventListener('mousemove', (e) => {
-  if (!player) return;
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-
-  player.angle = Math.atan2(mouseY - canvas.height / 2, mouseX - canvas.width / 2);
-  sendMovement();
-});
-
-// Mouse shooting on click
-canvas.addEventListener('mousedown', (e) => {
-  if (!player) return;
-  socket.emit('shoot');
-});
-
-// Send player movement to server
-function sendMovement() {
-  if (!player) return;
-
-  // Calculate new player position based on input
-  let dx = 0,
-    dy = 0;
-  if (inputState.up) dy -= player.speed;
-  if (inputState.down) dy += player.speed;
-  if (inputState.left) dx -= player.speed;
-  if (inputState.right) dx += player.speed;
-
-  // Normalize diagonal speed
-  if (dx !== 0 && dy !== 0) {
-    dx *= Math.SQRT1_2;
-    dy *= Math.SQRT1_2;
-  }
-
-  // Update position locally for smoothness
-  player.x = Math.max(player.size, Math.min(player.x + dx, MAP_WIDTH - player.size));
-  player.y = Math.max(player.size, Math.min(player.y + dy, MAP_HEIGHT - player.size));
-
-  socket.emit('playerMovement', { x: player.x, y: player.y, angle: player.angle });
+// --- Utility ---
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
-// Game loop
-function gameLoop() {
-  if (!gameStarted) return;
-
-  if (inputState.autofire) {
-    socket.emit('shoot');
-  } else if (inputState.shooting) {
-    socket.emit('shoot');
-  }
-
-  sendMovement();
-  updateCamera();
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw map background
-  ctx.fillStyle = '#111';
-  ctx.fillRect(-cameraX, -cameraY, MAP_WIDTH, MAP_HEIGHT);
-
-  // Draw coins
-  Object.values(coins).forEach(drawCoin);
-
-  // Draw bots
-  Object.values(bots).forEach((bot) => {
-    drawTank(bot, bot.x - cameraX, bot.y - cameraY, false);
-  });
-
-  // Draw players
-  Object.values(players).forEach((p) => {
-    drawTank(p, p.x - cameraX, p.y - cameraY, true);
-  });
-
-  // Draw projectiles
-  Object.values(projectiles).forEach(drawProjectile);
-
-  // Draw mini map (top right)
-  drawMiniMap();
-
-  // Update HUD
-  if (player) {
-    scoreEl.textContent = player.score;
-    coinsEl.textContent = player.coins;
-    if (player.team) {
-      teamScoreEl.textContent = `Team Score: ${teamScores[player.team] || 0}`;
-    } else {
-      teamScoreEl.textContent = '';
-    }
-  }
-
-  requestAnimationFrame(gameLoop);
+function clamp(val, min, max) {
+  return Math.min(Math.max(val, min), max);
 }
 
-// Mini map drawing
-function drawMiniMap() {
-  const mapWidth = 200;
-  const mapHeight = 150;
-  const padding = 20;
-
-  const x = canvas.width - mapWidth - padding;
-  const y = padding;
-
-  // Background
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.fillRect(x, y, mapWidth, mapHeight);
-
-  // Border
-  ctx.strokeStyle = '#00bfff';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(x, y, mapWidth, mapHeight);
-
-  // Scale ratio
-  const scaleX = mapWidth / MAP_WIDTH;
-  const scaleY = mapHeight / MAP_HEIGHT;
-
-  // Draw coins on mini map
-  Object.values(coins).forEach((coin) => {
-    ctx.fillStyle = '#ffeb3b';
-    ctx.beginPath();
-    ctx.arc(x + coin.x * scaleX, y + coin.y * scaleY, 4, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Draw bots on mini map
-  Object.values(bots).forEach((bot) => {
-    ctx.fillStyle = bot.team === 'red' ? '#e74c3c' : bot.team === 'blue' ? '#3498db' : '#f39c12';
-    ctx.beginPath();
-    ctx.arc(x + bot.x * scaleX, y + bot.y * scaleY, 6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Draw players on mini map
-  Object.values(players).forEach((p) => {
-    ctx.fillStyle = p.team === 'red' ? '#e74c3c' : p.team === 'blue' ? '#3498db' : '#00bfff';
-    ctx.beginPath();
-    ctx.arc(x + p.x * scaleX, y + p.y * scaleY, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Player pointer (white border)
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(x + p.x * scaleX, y + p.y * scaleY, 7, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-}
-
-// Socket events
-let teamScores = {};
-
-socket.on('connect', () => {
-  console.log('Connected to server');
+// --- Player Join ---
+playBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  if (name.length < 2) {
+    alert('Please enter a valid name (at least 2 characters)');
+    return;
+  }
+  playerName = name;
+  socket.emit('playerJoined', { name: playerName });
+  menuDiv.classList.add('hidden');
 });
 
+// --- Receive Initial Game Data ---
 socket.on('init', (data) => {
   players = data.players;
   bots = data.bots;
-  projectiles = data.projectiles;
   coins = data.coins;
-
+  projectiles = data.projectiles;
   playerId = socket.id;
-  player = players[playerId];
 
-  // Hide menu, show HUD
-  mainMenu.classList.add('hidden');
-  hud.classList.remove('hidden');
-
-  gameStarted = true;
-  gameLoop();
+  // Initialize smooth positions
+  if (players[playerId]) {
+    smoothX = players[playerId].x;
+    smoothY = players[playerId].y;
+    smoothAngle = players[playerId].angle;
+  }
 });
 
-socket.on('newPlayer', (p) => {
-  players[p.id] = p;
-});
-
-socket.on('removePlayer', (id) => {
-  delete players[id];
-});
-
+// --- Update players, bots, projectiles, coins ---
 socket.on('updatePlayers', (data) => {
   players = data;
-  player = players[playerId];
 });
 
 socket.on('updateBots', (data) => {
   bots = data;
 });
 
-socket.on('newProjectile', (proj) => {
-  projectiles[proj.id] = proj;
-});
-
-socket.on('removeProjectile', (id) => {
-  delete projectiles[id];
-});
-
 socket.on('updateProjectiles', (data) => {
   projectiles = data;
-});
-
-socket.on('spawnCoin', (coin) => {
-  coins[coin.id] = coin;
-});
-
-socket.on('removeCoin', (id) => {
-  delete coins[id];
 });
 
 socket.on('updateCoins', (data) => {
   coins = data;
 });
 
-socket.on('leaderboard', (topPlayers) => {
-  // Could implement leaderboard UI here
+// --- Leaderboard update ---
+socket.on('leaderboard', (data) => {
+  leaderboard = data;
+  updateLeaderboardUI();
 });
 
-socket.on('teamScores', (scores) => {
-  teamScores = scores;
+// --- Chat messages ---
+socket.on('chatMessage', ({ name, message }) => {
+  addChatMessage(name, message);
 });
 
-socket.on('chatMessage', (msg) => {
-  const msgEl = document.createElement('div');
-  msgEl.className = 'chatMessage';
-  msgEl.textContent = `${msg.team ? `[${msg.team.toUpperCase()}] ` : ''}${msg.name}: ${msg.message}`;
-  chatMessages.appendChild(msgEl);
+// --- UI updates ---
+function updateLeaderboardUI() {
+  leaderboardList.innerHTML = '';
+  leaderboard.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="name">${p.id === playerId ? 'You' : p.id}</span>
+                    <span class="score">${p.score}</span>`;
+    leaderboardList.appendChild(li);
+  });
+}
+
+function addChatMessage(name, message) {
+  const msgDiv = document.createElement('div');
+  msgDiv.innerHTML = `<span class="name">${name}:</span> <span class="message">${message}</span>`;
+  chatMessages.appendChild(msgDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// --- Handle Input ---
+window.addEventListener('keydown', (e) => {
+  if (document.activeElement === chatInput) return;
+
+  if (e.key === 'w' || e.key === 'ArrowUp') inputState.up = true;
+  if (e.key === 'a' || e.key === 'ArrowLeft') inputState.left = true;
+  if (e.key === 's' || e.key === 'ArrowDown') inputState.down = true;
+  if (e.key === 'd' || e.key === 'ArrowRight') inputState.right = true;
+  if (e.key === ' ') inputState.shoot = true;
+  if (e.key.toLowerCase() === 'e') inputState.autoShoot = !inputState.autoShoot;
 });
 
-// Button events
-startGameBtn.onclick = () => {
-  const name = playerNameInput.value.trim();
-  if (!name) {
-    alert('Please enter your name!');
-    return;
-  }
-  const mode = document.querySelector('input[name="mode"]:checked').value;
-  socket.emit('playerJoin', { name, mode });
-};
-
-toggleUpgradesBtn.onclick = () => {
-  upgradesPanel.classList.toggle('hidden');
-};
-
-closeUpgradesBtn.onclick = () => {
-  upgradesPanel.classList.add('hidden');
-};
-
-upgradeButtons.forEach((btn) => {
-  btn.onclick = () => {
-    const upgrade = btn.getAttribute('data-upgrade');
-    socket.emit('upgrade', upgrade);
-  };
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'w' || e.key === 'ArrowUp') inputState.up = false;
+  if (e.key === 'a' || e.key === 'ArrowLeft') inputState.left = false;
+  if (e.key === 's' || e.key === 'ArrowDown') inputState.down = false;
+  if (e.key === 'd' || e.key === 'ArrowRight') inputState.right = false;
+  if (e.key === ' ') inputState.shoot = false;
 });
 
-toggleChatBtn.onclick = () => {
-  chatContainer.classList.toggle('hidden');
-};
+// Mouse to get angle
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  inputState.mouseX = e.clientX - rect.left;
+  inputState.mouseY = e.clientY - rect.top;
+});
 
+// Send chat messages
 chatInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && chatInput.value.trim()) {
-    socket.emit('chatMessage', chatInput.value.trim());
+  if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+    socket.emit('chatMessage', { message: chatInput.value.trim() });
     chatInput.value = '';
   }
 });
+
+// --- Game Loop & Rendering ---
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Smooth player movement interpolation
+  const player = players[playerId];
+  if (player) {
+    smoothX = lerp(smoothX, player.x * (canvas.width / 900), 0.15);
+    smoothY = lerp(smoothY, player.y * (canvas.height / 700), 0.15);
+
+    // Calculate aiming angle
+    const dx = inputState.mouseX - smoothX;
+    const dy = inputState.mouseY - smoothY;
+    smoothAngle = Math.atan2(dy, dx);
+
+    // Send movement updates
+    let newX = player.x;
+    let newY = player.y;
+    if (inputState.up) newY -= player.speed;
+    if (inputState.down) newY += player.speed;
+    if (inputState.left) newX -= player.speed;
+    if (inputState.right) newX += player.speed;
+
+    // Clamp position inside map
+    newX = clamp(newX, player.size, 900 - player.size);
+    newY = clamp(newY, player.size, 700 - player.size);
+
+    if (newX !== player.x || newY !== player.y || smoothAngle !== player.angle) {
+      socket.emit('playerMovement', { x: newX, y: newY, angle: smoothAngle });
+    }
+
+    // Shoot if space pressed or autofire enabled
+    if (inputState.shoot || inputState.autoShoot) {
+      socket.emit('shoot');
+    }
+  }
+
+  // Draw coins
+  Object.values(coins).forEach((coin) => {
+    const cx = coin.x * (canvas.width / 900);
+    const cy = coin.y * (canvas.height / 700);
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(cx, cy, coin.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = 'gold';
+    ctx.shadowBlur = 10;
+  });
+
+  // Draw bots
+  Object.values(bots).forEach((bot) => {
+    const bx = bot.x * (canvas.width / 900);
+    const by = bot.y * (canvas.height / 700);
+    const radius = bot.size * (canvas.width / 900);
+
+    // Bot body
+    ctx.fillStyle = bot.color1;
+    ctx.beginPath();
+    ctx.arc(bx, by, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bot health bar above
+    ctx.fillStyle = '#333';
+    ctx.fillRect(bx - radius, by - radius - 15, radius * 2, 6);
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(bx - radius, by - radius - 15, (bot.health / bot.maxHealth) * radius * 2, 6);
+  });
+
+  // Draw projectiles
+  Object.values(projectiles).forEach((p) => {
+    const px = p.x * (canvas.width / 900);
+    const py = p.y * (canvas.height / 700);
+    ctx.fillStyle = '#00ccff';
+    ctx.beginPath();
+    ctx.arc(px, py, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Draw player
+  if (player) {
+    const px = smoothX;
+    const py = smoothY;
+    const radius = player.size * (canvas.width / 900);
+
+    // Player base
+    ctx.fillStyle = player.color1;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Player turret
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(smoothAngle);
+    ctx.fillStyle = player.color2;
+    ctx.fillRect(0, -radius / 4, radius * 1.5, radius / 2);
+    ctx.restore();
+
+    // Player health bar
+    healthFill.style.width = `${(player.health / player.maxHealth) * 100}%`;
+
+    // Player score and coins
+    scoreCoins.textContent = `Score: ${player.score} | Coins: ${player.coins}`;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+// --- Upgrades Panel Logic ---
+
+// Upgrade states and prices
+const upgrades = {
+  damage: { level: 0, maxLevel: 5, basePrice: 20 },
+  bulletSpeed: { level: 0, maxLevel: 5, basePrice: 30 },
+  health: { level: 0, maxLevel: 5, basePrice: 25 },
+  healthRegen: { level: 0, maxLevel: 5, basePrice: 40 },
+  reloadSpeed: { level: 0, maxLevel: 5, basePrice: 35 },
+};
+
+function calculatePrice(upgrade) {
+  const base = upgrades[upgrade].basePrice;
+  const level = upgrades[upgrade].level;
+  return base + level * base * 1.5; // price scales exponentially
+}
+
+// Render upgrades UI
+function renderUpgrades() {
+  upgradesPanel.innerHTML = ''; // clear
+
+  Object.keys(upgrades).forEach((key) => {
+    const up = upgrades[key];
+    const price = Math.floor(calculatePrice(key));
+    const disabled = up.level >= up.maxLevel || (players[playerId]?.coins ?? 0) < price;
+
+    const upDiv = document.createElement('div');
+    upDiv.className = 'upgrade-item';
+
+    upDiv.innerHTML = `
+      <h4>${key.charAt(0).toUpperCase() + key.slice(1)} (Level ${up.level}/${up.maxLevel})</h4>
+      <button ${disabled ? 'disabled' : ''} data-upgrade="${key}">
+        Buy Upgrade (${price} coins)
+      </button>
+    `;
+
+    upgradesPanel.appendChild(upDiv);
+  });
+}
+
+// Buy upgrade handler
+upgradesPanel.addEventListener('click', (e) => {
+  if (e.target.tagName === 'BUTTON') {
+    const upKey = e.target.getAttribute('data-upgrade');
+    const player = players[playerId];
+    if (!player) return;
+
+    const price = Math.floor(calculatePrice(upKey));
+    if (player.coins >= price && upgrades[upKey].level < upgrades[upKey].maxLevel) {
+      // Deduct coins
+      player.coins -= price;
+      upgrades[upKey].level++;
+
+      // Send upgrade purchase event to server
+      socket.emit('buyUpgrade', { upgrade: upKey, level: upgrades[upKey].level });
+
+      // Update UI
+      renderUpgrades();
+      scoreCoins.textContent = `Score: ${player.score} | Coins: ${player.coins}`;
+    }
+  }
+});
+
+// Open/close upgrades panel buttons
+openUpgradesBtn.addEventListener('click', () => {
+  upgradesPanel.style.display = 'block';
+  openUpgradesBtn.style.display = 'none';
+});
+closeUpgradesBtn.addEventListener('click', () => {
+  upgradesPanel.style.display = 'none';
+  openUpgradesBtn.style.display = 'inline-block';
+});
+
+// Initial upgrades UI render
+renderUpgrades();
+
+// --- Chat toggle ---
+
+const chatToggleBtn = document.getElementById('chat-toggle-btn');
+chatToggleBtn.addEventListener('click', () => {
+  if (chatPanel.style.display === 'none' || !chatPanel.style.display) {
+    chatPanel.style.display = 'block';
+  } else {
+    chatPanel.style.display = 'none';
+  }
+});
+
+// --- Animations & polish ---
+
+// Simple fade-in for menu and UI elements on load
+function fadeIn(element, duration = 500) {
+  element.style.opacity = 0;
+  element.style.display = 'block';
+  let last = performance.now();
+
+  function tick(now) {
+    const elapsed = now - last;
+    last = now;
+    let opacity = parseFloat(element.style.opacity);
+    opacity += elapsed / duration;
+    if (opacity > 1) opacity = 1;
+    element.style.opacity = opacity;
+    if (opacity < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// Fade menu in on page load
+fadeIn(menuDiv);
+
+// --- Additional game loop polish ---
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fillColor, strokeColor) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  if (fillColor) {
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+  }
+  if (strokeColor) {
+    ctx.strokeStyle = strokeColor;
+    ctx.stroke();
+  }
+}
+
+// Replace health bar drawing with rounded bar
+// (Add this inside the gameLoop function replacing previous health bar draw for bots and player)
+

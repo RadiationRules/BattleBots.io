@@ -1,230 +1,339 @@
-/* Reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  user-select: none;
-}
-
-body, html {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: linear-gradient(135deg, #222, #000);
-  color: #eee;
-}
-
-/* Canvas */
-#gameCanvas {
-  display: block;
-  background: linear-gradient(180deg, #2c3e50 0%, #000 100%);
-  width: 100vw;
-  height: 100vh;
-  cursor: crosshair;
-}
-
-/* Main Menu */
-.menu {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 300px;
-  padding: 30px;
-  transform: translate(-50%, -50%);
-  background: rgba(20, 20, 20, 0.9);
-  border-radius: 15px;
-  box-shadow: 0 0 30px #007acc;
-  text-align: center;
-  color: #00bfff;
-  z-index: 20;
-  user-select: text;
-}
-
-.menu h1 {
-  font-size: 3rem;
-  margin-bottom: 20px;
-  text-shadow: 0 0 12px #00bfff;
-}
-
-.menu input[type="text"] {
-  width: 80%;
-  padding: 10px;
-  font-size: 1.2rem;
-  border-radius: 8px;
-  border: none;
-  outline: none;
-  margin-bottom: 15px;
-  text-align: center;
-  color: #333;
-}
-
-.mode-selection {
-  margin-bottom: 20px;
-  color: #00bfff;
-  font-weight: bold;
-}
-
-.mode-selection label {
-  margin-right: 20px;
-  cursor: pointer;
-}
-
-.btn-primary {
-  padding: 12px 25px;
-  font-size: 1.2rem;
-  background: #007acc;
-  border: none;
-  border-radius: 10px;
-  color: white;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  user-select: none;
-}
-
-.btn-primary:hover {
-  background: #005a99;
-}
-
-.credits {
-  margin-top: 15px;
-  font-size: 0.9rem;
-  color: #555;
-}
-
-/* HUD */
-#hud {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  color: white;
-  font-size: 1.2rem;
-  z-index: 15;
-  user-select: none;
-  display: flex;
-  gap: 25px;
-  align-items: center;
-}
-
-#scoreCoins div {
-  margin-right: 15px;
-}
-
-.btn-secondary {
-  background: #111;
-  border: 1.5px solid #00bfff;
-  border-radius: 8px;
-  color: #00bfff;
-  padding: 8px 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  user-select: none;
-}
-
-.btn-secondary:hover {
-  background: #005a99;
-  border-color: #007acc;
-  color: #fff;
-}
-
-/* Panels */
-.panel {
-  position: absolute;
-  bottom: 50px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.75);
-  border-radius: 15px;
-  padding: 15px 25px;
-  max-width: 320px;
-  max-height: 350px;
-  overflow-y: auto;
-  color: #00bfff;
-  box-shadow: 0 0 30px #007acc;
-  z-index: 15;
-  user-select: none;
-}
-
-.panel h2 {
-  margin-bottom: 15px;
-  text-align: center;
-}
-
-.panel ul {
-  list-style: none;
-  padding-left: 0;
-}
-
-.panel li {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.upgradeBtn {
-  background: #007acc;
-  border: none;
-  border-radius: 6px;
-  color: white;
-  cursor: pointer;
-  padding: 6px 10px;
-  font-weight: bold;
-  transition: background 0.25s ease;
-  user-select: none;
-}
-
-.upgradeBtn:hover {
-  background: #005a99;
-}
-
-/* Chat Panel */
-.chat-panel {
-  bottom: 80px;
-  right: 360px;
-  width: 360px;
-  max-height: 300px;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-messages {
-  background: #111;
-  border-radius: 10px;
-  flex-grow: 1;
-  padding: 10px;
-  font-size: 0.9rem;
-  overflow-y: auto;
-  color: white;
-  box-shadow: inset 0 0 5px #007acc;
-}
-
-#chatInput {
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 1rem;
-  outline: none;
-}
-
-/* Hidden class */
+/* Container & visibility */
 .hidden {
   display: none !important;
 }
 
-/* Responsive adjustments */
-@media (max-width: 800px) {
-  #hud {
+.menu {
+  background: rgba(20, 30, 40, 0.95);
+  padding: 40px 60px;
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+  text-align: center;
+  width: 320px;
+}
+
+.menu h1 {
+  font-size: 3rem;
+  margin-bottom: 30px;
+  color: #00ccff;
+  text-shadow: 0 0 10px #00ccff;
+}
+
+.menu input[type="text"], .menu select {
+  width: 100%;
+  padding: 12px 15px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 1.2rem;
+  background: #142c44;
+  color: #ddd;
+  box-shadow: inset 0 0 8px #00aaff;
+  transition: background 0.3s ease;
+}
+
+.menu input[type="text"]:focus, .menu select:focus {
+  background: #1a4063;
+  outline: none;
+}
+
+.menu button {
+  background: #00aaff;
+  border: none;
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 5px 15px #00aaffaa;
+  transition: background 0.3s ease;
+}
+
+.menu button:hover {
+  background: #0088cc;
+}
+
+/* Game Container */
+#game-container {
+  position: relative;
+  width: 900px;
+  height: 600px;
+  background: linear-gradient(45deg, #001f3f, #004080);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 0 40px #0077ffbb;
+}
+
+/* Canvas */
+#game-canvas {
+  background: url('https://i.imgur.com/VvX4eNK.png') no-repeat center center; /* Example textured background */
+  background-size: cover;
+  border-radius: 15px;
+  display: block;
+}
+
+/* GUI container */
+#gui {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #eee;
+  font-weight: 600;
+  user-select: none;
+  pointer-events: none;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Health Bar */
+#health-bar {
+  width: 280px;
+  height: 25px;
+  background: #333;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 0 12px #0ff inset;
+  pointer-events: auto;
+}
+
+#health-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #0ff 0%, #08a 100%);
+  transition: width 0.25s ease-out;
+}
+
+/* Score and Coins */
+#score-coins {
+  flex: 1;
+  margin-left: 20px;
+  font-size: 1.25rem;
+  pointer-events: auto;
+}
+
+/* Buttons in GUI */
+#gui button {
+  background: #00aaffdd;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 15px;
+  margin-left: 10px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+  box-shadow: 0 0 12px #00aaff88;
+  transition: background 0.3s ease;
+}
+
+#gui button:hover {
+  background: #0088ccdd;
+}
+
+/* Panels like Leaderboard, Upgrades, Chat */
+.panel {
+  position: absolute;
+  top: 60px;
+  right: 15px;
+  background: rgba(10, 20, 40, 0.95);
+  border-radius: 15px;
+  width: 270px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 0 30px #00aaffcc;
+  padding: 15px 20px;
+  color: #eee;
+  font-weight: 600;
+  user-select: none;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.panel h3 {
+  margin-bottom: 12px;
+  text-align: center;
+  font-size: 1.5rem;
+  color: #00ccff;
+  text-shadow: 0 0 8px #00ccffbb;
+}
+
+/* Leaderboard List */
+#leaderboard-list {
+  list-style: none;
+}
+
+#leaderboard-list li {
+  padding: 8px 6px;
+  border-bottom: 1px solid #004466;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  color: #b0dfff;
+}
+
+#leaderboard-list li span.name {
+  font-weight: 700;
+  color: #00aaff;
+  text-shadow: 0 0 5px #0088cc;
+}
+
+#leaderboard-list li span.score {
+  font-weight: 900;
+  color: #0ff;
+  text-shadow: 0 0 8px #00ffffbb;
+}
+
+/* Upgrade Panel */
+#upgrades-panel .upgrade-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+#upgrades-panel label {
+  font-size: 1.1rem;
+  color: #00bbff;
+  text-shadow: 0 0 8px #0088cc;
+}
+
+#upgrades-panel button {
+  background: #0077cc;
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+#upgrades-panel button:hover {
+  background: #005fa3;
+}
+
+#close-upgrades {
+  margin-top: 15px;
+  background: #aa2222;
+  width: 100%;
+  font-weight: 900;
+  font-size: 1.1rem;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+#close-upgrades:hover {
+  background: #880000;
+}
+
+/* Chat Panel */
+#chat-panel {
+  bottom: 15px;
+  right: 15px;
+  height: 250px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+#chat-messages {
+  flex: 1;
+  background: #001c30dd;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: 12px 12px 0 0;
+  font-size: 0.9rem;
+  color: #a0dfff;
+  user-select: text;
+  box-shadow: inset 0 0 15px #00aaffcc;
+}
+
+#chat-messages div {
+  margin-bottom: 6px;
+}
+
+#chat-messages div span.name {
+  font-weight: 700;
+  color: #00aaff;
+  margin-right: 5px;
+}
+
+#chat-messages div span.message {
+  font-style: italic;
+  color: #ddf0ffcc;
+}
+
+#chat-input {
+  padding: 10px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 0 0 12px 12px;
+  background: #00395a;
+  color: white;
+  outline: none;
+  box-shadow: inset 0 0 10px #00aaffcc;
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+  #game-container {
+    width: 100vw;
+    height: 70vh;
+    border-radius: 0;
+  }
+
+  #game-canvas {
+    width: 100%;
+    height: 100%;
+    background-position: center;
+  }
+
+  .panel {
+    width: 90vw;
+    max-height: 40vh;
+    right: 5%;
+    top: auto;
+    bottom: 60px;
+  }
+
+  #chat-panel {
+    width: 90vw;
+    bottom: 15px;
+    right: 5%;
+  }
+}
+
+@media (max-width: 480px) {
+  .menu {
+    width: 90vw;
+    padding: 30px 20px;
+  }
+
+  .menu h1 {
+    font-size: 2.5rem;
+  }
+
+  #gui {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #score-coins {
+    margin-left: 0;
+    margin-top: 10px;
     font-size: 1rem;
   }
-  .panel {
-    max-width: 280px;
-  }
-  .chat-panel {
-    width: 280px;
-    right: 10px;
-    bottom: 120px;
+
+  #gui button {
+    margin-left: 0;
+    margin-top: 8px;
   }
 }

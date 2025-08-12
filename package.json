@@ -1,13 +1,13 @@
 {
   "name": "battlebots",
   "version": "1.0.0",
-  "description": "Multiplayer battlebots.io game",
+  "description": "Multiplayer BattleBots.io game with polished UI, upgrades, chat, and modes",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "",
-  "license": "MIT",
+  "author": "BattleBots AI",
+  "license": "ISC",
   "dependencies": {
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
