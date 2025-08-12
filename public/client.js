@@ -1,541 +1,404 @@
-// client.js
+(() => {
+  const socket = io();
 
-const socket = io();
+  // Canvas setup
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
 
-// Canvas setup
-const canvas = document.getElementById('game-canvas');
-const ctx = canvas.getContext('2d');
-
-const MAP_WIDTH = 1600;
-const MAP_HEIGHT = 900;
-
-let players = {};
-let bots = {};
-let coins = {};
-let projectiles = {};
-
-let playerId = null;
-let currentPlayer = null;
-
-let gameMode = 'Free For All';
-let gameModes = [];
-
-let upgrades = {
-  damage: 0,
-  bulletSpeed: 0,
-  health: 0,
-  regen: 0,
-  reload: 0,
-};
-
-const MAX_LEVELS = {
-  damage: 10,
-  bulletSpeed: 10,
-  health: 10,
-  regen: 10,
-  reload: 10,
-};
-
-let keysPressed = {};
-let autoFire = false;
-
-let camera = {
-  x: 0,
-  y: 0,
-  zoom: 1,
-};
-
-let mousePos = { x: 0, y: 0 };
-
-let lastShotTime = 0;
-const SHOOT_COOLDOWN_BASE = 250;
-
-// UI Elements
-const mainMenu = document.getElementById('main-menu');
-const gameContainer = document.getElementById('game-container');
-const playerNameInput = document.getElementById('player-name');
-const gameModeSelect = document.getElementById('game-mode-select');
-const teamSelectContainer = document.getElementById('team-select-container');
-const playButton = document.getElementById('play-button');
-
-const healthFill = document.getElementById('health-fill');
-const scoreboard = document.getElementById('scoreboard');
-const leaderboardList = document.getElementById('leaderboard-list');
-const upgradesPanel = document.getElementById('upgrades-panel');
-
-let selectedTeam = 'red';
-
-document.querySelectorAll('input[name="team"]').forEach(radio => {
-  radio.addEventListener('change', e => {
-    selectedTeam = e.target.value;
-  });
-});
-
-// Show/hide team select based on game mode
-gameModeSelect.addEventListener('change', () => {
-  if (gameModeSelect.value === 'Team Deathmatch') {
-    teamSelectContainer.style.display = 'block';
-  } else {
-    teamSelectContainer.style.display = 'none';
+  // Resize canvas full window
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
   }
-});
+  window.addEventListener('resize', resize);
+  resize();
 
-playButton.onclick = () => {
-  const name = playerNameInput.value.trim();
-  if (!name) return alert('Please enter a name');
+  // UI Elements
+  const mainMenu = document.getElementById('main-menu');
+  const playBtn = document.getElementById('play-btn');
+  const playerNameInput = document.getElementById('player-name');
+  const gameModeSelect = document.getElementById('game-mode');
+  const ui = document.getElementById('ui');
+  const healthSpan = document.getElementById('health');
+  const coinsSpan = document.getElementById('coins');
+  const leaderboardList = document.getElementById('leaderboard-list');
+  const upgradesPanel = document.getElementById('upgrades-panel');
+  const upgradeButtons = upgradesPanel.querySelectorAll('button.upgrade');
+  const closeUpgradesBtn = document.getElementById('close-upgrades');
+  const upgradeMsg = document.getElementById('upgrade-message');
+  const upgradeBtn = document.getElementById('upgrade-btn');
 
-  socket.emit('selectGameMode', gameModeSelect.value);
-  socket.emit('playerJoined', { name, team: selectedTeam });
+  // Game state
+  let playerId = null;
+  let players = {};
+  let bots = {};
+  let projectiles = {};
+  let coins = {};
+  let chests = {};
+  let leaderboard = [];
 
-  mainMenu.classList.remove('visible');
-  mainMenu.classList.add('hidden');
+  let keys = {};
+  let mousePos = { x: 0, y: 0 };
+  let mouseDown = false;
+  let inGame = false;
 
-  gameContainer.classList.remove('hidden');
-  gameContainer.classList.add('visible');
-};
+  let lastShootTime = 0;
 
-// Listen for initial game data
-socket.on('init', (data) => {
-  players = data.players;
-  bots = data.bots;
-  coins = data.coins;
-  projectiles = data.projectiles;
-  gameMode = data.gameMode;
-  gameModes = data.gameModes;
-
-  playerId = socket.id;
-  currentPlayer = players[playerId];
-});
-
-// Update players
-socket.on('updatePlayers', (data) => {
-  players = data;
-  currentPlayer = players[playerId];
-});
-
-// Update bots
-socket.on('updateBots', (data) => {
-  bots = data;
-});
-
-// Update coins
-socket.on('updateCoins', (data) => {
-  coins = data;
-});
-
-// New projectile
-socket.on('newProjectile', (proj) => {
-  projectiles[proj.id] = proj;
-});
-
-// Remove projectile
-socket.on('removeProjectile', (id) => {
-  delete projectiles[id];
-});
-
-// Spawn coin
-socket.on('spawnCoin', (coin) => {
-  coins[coin.id] = coin;
-});
-
-// Leaderboard update
-socket.on('leaderboard', (list) => {
-  leaderboardList.innerHTML = '';
-  list.forEach(player => {
-    const li = document.createElement('li');
-    li.textContent = `${player.name}: ${player.score} pts | Coins: ${player.coins}`;
-    if (gameMode === 'Team Deathmatch' && player.team) {
-      li.textContent += ` [${player.team.toUpperCase()}]`;
-      li.style.color = player.team === 'red' ? '#ff4444' : '#44aaff';
+  // Controls
+  window.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === 'e') {
+      shoot();
     }
-    leaderboardList.appendChild(li);
   });
-});
+  window.addEventListener('keyup', (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
 
-// Movement input handling
-window.addEventListener('keydown', (e) => {
-  keysPressed[e.key.toLowerCase()] = true;
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mousePos.x = e.clientX - rect.left;
+    mousePos.y = e.clientY - rect.top;
+  });
 
-  if (e.key.toLowerCase() === 'e') {
-    autoFire = !autoFire;
-    socket.emit('toggleAutoFire', autoFire);
+  canvas.addEventListener('mousedown', () => { mouseDown = true; });
+  canvas.addEventListener('mouseup', () => { mouseDown = false; });
+
+  // Enter game
+  playBtn.addEventListener('click', () => {
+    const name = playerNameInput.value.trim() || 'Anonymous';
+    const mode = gameModeSelect.value;
+    if (name.length === 0) {
+      alert('Please enter your name.');
+      return;
+    }
+    startGame(name, mode);
+  });
+
+  function startGame(name, mode) {
+    mainMenu.style.display = 'none';
+    canvas.style.display = 'block';
+    ui.classList.remove('hidden');
+    playerId = socket.id;
+    socket.emit('joinGame', { name, mode });
+    inGame = true;
   }
 
-  // Prevent default arrow key scroll
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
-    e.preventDefault();
+  // Receive initial game state
+  socket.on('init', (data) => {
+    players = data.players;
+    bots = data.bots;
+    coins = data.coins;
+    chests = data.chests;
+    projectiles = data.projectiles;
+    playerId = socket.id;
+  });
+
+  socket.on('newPlayer', (player) => {
+    players[player.id] = player;
+  });
+
+  socket.on('removePlayer', (id) => {
+    delete players[id];
+  });
+
+  socket.on('updatePlayers', (data) => {
+    players = data;
+  });
+
+  socket.on('updateBots', (data) => {
+    bots = data;
+  });
+
+  socket.on('updateProjectiles', (data) => {
+    projectiles = data;
+  });
+
+  socket.on('newProjectile', (proj) => {
+    projectiles[proj.id] = proj;
+  });
+
+  socket.on('removeProjectile', (id) => {
+    delete projectiles[id];
+  });
+
+  socket.on('spawnCoin', (coin) => {
+    coins[coin.id] = coin;
+  });
+
+  socket.on('removeCoin', (id) => {
+    delete coins[id];
+  });
+
+  socket.on('removeChest', (id) => {
+    delete chests[id];
+  });
+
+  socket.on('updateCoins', (data) => {
+    coins = data;
+  });
+
+  socket.on('updateChests', (data) => {
+    chests = data;
+  });
+
+  socket.on('leaderboard', (list) => {
+    leaderboard = list;
+    renderLeaderboard();
+  });
+
+  socket.on('upgradeFailed', (msg) => {
+    showUpgradeMessage(msg, true);
+  });
+
+  socket.on('upgradeSuccess', (type) => {
+    showUpgradeMessage(`${type} upgraded!`, false);
+  });
+
+  // Upgrade panel toggle
+  upgradeBtn.addEventListener('click', () => {
+    upgradesPanel.classList.remove('hidden');
+  });
+  closeUpgradesBtn.addEventListener('click', () => {
+    upgradesPanel.classList.add('hidden');
+    upgradeMsg.textContent = '';
+  });
+
+  upgradeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.upgrade;
+      socket.emit('buyUpgrade', type);
+    });
+  });
+
+  // Show upgrade messages with fade
+  let upgradeMsgTimeout;
+  function showUpgradeMessage(msg, isError) {
+    clearTimeout(upgradeMsgTimeout);
+    upgradeMsg.textContent = msg;
+    upgradeMsg.style.color = isError ? '#e74c3c' : '#2ecc71';
+    upgradeMsgTimeout = setTimeout(() => {
+      upgradeMsg.textContent = '';
+    }, 2500);
   }
-});
 
-window.addEventListener('keyup', (e) => {
-  keysPressed[e.key.toLowerCase()] = false;
-});
+  // Game loop
+  function gameLoop() {
+    if (!inGame) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
 
-canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  mousePos.x = e.clientX - rect.left;
-  mousePos.y = e.clientY - rect.top;
-});
-
-canvas.addEventListener('click', () => {
-  if (!autoFire) shoot();
-});
-
-function shoot() {
-  if (!currentPlayer) return;
-  const now = Date.now();
-  const reloadTime = SHOOT_COOLDOWN_BASE - upgrades.reload * 15; // faster reload with upgrades
-
-  if (now - lastShotTime < reloadTime) return;
-  lastShotTime = now;
-
-  socket.emit('shoot');
-}
-
-// Game update & draw loop
-function gameLoop() {
-  if (!currentPlayer) {
+    update();
+    render();
     requestAnimationFrame(gameLoop);
-    return;
   }
 
-  // Calculate player movement vector
-  let dx = 0, dy = 0;
-  if (keysPressed['w'] || keysPressed['arrowup']) dy -= 1;
-  if (keysPressed['s'] || keysPressed['arrowdown']) dy += 1;
-  if (keysPressed['a'] || keysPressed['arrowleft']) dx -= 1;
-  if (keysPressed['d'] || keysPressed['arrowright']) dx += 1;
+  function update() {
+    const player = players[playerId];
+    if (!player) return;
 
-  // Normalize movement
-  if (dx !== 0 || dy !== 0) {
-    const length = Math.sqrt(dx * dx + dy * dy);
-    dx /= length;
-    dy /= length;
+    // Movement
+    let dx = 0, dy = 0;
+    if (keys['w'] || keys['arrowup']) dy -= player.speed;
+    if (keys['s'] || keys['arrowdown']) dy += player.speed;
+    if (keys['a'] || keys['arrowleft']) dx -= player.speed;
+    if (keys['d'] || keys['arrowright']) dx += player.speed;
 
-    // Apply player speed and upgrades
-    const speed = currentPlayer.speed + upgrades.health * 0.3;
-    currentPlayer.x += dx * speed;
-    currentPlayer.y += dy * speed;
+    // Normalize diagonal speed
+    if (dx !== 0 && dy !== 0) {
+      dx *= Math.SQRT1_2;
+      dy *= Math.SQRT1_2;
+    }
 
-    // Clamp inside map
-    currentPlayer.x = Math.min(Math.max(currentPlayer.size, currentPlayer.x), MAP_WIDTH - currentPlayer.size);
-    currentPlayer.y = Math.min(Math.max(currentPlayer.size, currentPlayer.y), MAP_HEIGHT - currentPlayer.size);
+    player.x = Math.min(Math.max(player.size, player.x + dx), 1600 - player.size);
+    player.y = Math.min(Math.max(player.size, player.y + dy), 1200 - player.size);
 
-    // Send movement update
-    socket.emit('playerMovement', {
-      x: currentPlayer.x,
-      y: currentPlayer.y,
-      angle: Math.atan2(mousePos.y - canvas.height / 2, mousePos.x - canvas.width / 2),
+    // Angle toward mouse
+    player.angle = Math.atan2(mousePos.y - H / 2, mousePos.x - W / 2);
+
+    // Autoshot with 'e' held down
+    if (keys['e']) {
+      shoot();
+    }
+
+    // Send movement to server
+    socket.emit('playerMovement', { x: player.x, y: player.y, angle: player.angle });
+
+    // Update UI health and coins
+    healthSpan.textContent = Math.floor(player.health);
+    coinsSpan.textContent = player.coins;
+  }
+
+  let canShoot = true;
+  function shoot() {
+    if (!canShoot) return;
+    canShoot = false;
+    socket.emit('shoot');
+    setTimeout(() => { canShoot = true; }, 50); // Prevent spam (will be rate-limited server-side)
+  }
+
+  // Draw rotated rectangle helper
+  function drawRotatedRect(x, y, w, h, angle, fillStyle, strokeStyle, lineWidth = 2) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = fillStyle;
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  // Render the game
+  function render() {
+    // Clear with gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 0, H);
+    gradient.addColorStop(0, '#2c3e50');
+    gradient.addColorStop(1, '#34495e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+
+    const player = players[playerId];
+    if (!player) return;
+
+    // Calculate camera offset to center player
+    const camX = player.x - W / 2;
+    const camY = player.y - H / 2;
+
+    // Draw coins
+    Object.values(coins).forEach(c => {
+      const screenX = c.x - camX;
+      const screenY = c.y - camY;
+      ctx.beginPath();
+      ctx.fillStyle = '#f1c40f';
+      ctx.shadowColor = '#f39c12';
+      ctx.shadowBlur = 8;
+      ctx.arc(screenX, screenY, c.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // Draw chests
+    Object.values(chests).forEach(ch => {
+      const screenX = ch.x - camX;
+      const screenY = ch.y - camY;
+      ctx.fillStyle = '#d35400';
+      ctx.strokeStyle = '#e67e22';
+      ctx.lineWidth = 3;
+      ctx.fillRect(screenX - ch.size / 2, screenY - ch.size / 2, ch.size, ch.size);
+      ctx.strokeRect(screenX - ch.size / 2, screenY - ch.size / 2, ch.size, ch.size);
+    });
+
+    // Draw bots
+    Object.values(bots).forEach(bot => {
+      const screenX = bot.x - camX;
+      const screenY = bot.y - camY;
+      // Body
+      ctx.fillStyle = bot.color1;
+      ctx.strokeStyle = bot.color2;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(screenX, screenY, bot.size, bot.size * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Saw blade animation (rotating circle on top)
+      ctx.save();
+      ctx.translate(screenX, screenY);
+      ctx.rotate(bot.sawAngle || 0);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, bot.size * 0.8);
+        ctx.rotate(Math.PI / 6);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Health bar above bot
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(screenX - bot.size, screenY - bot.size - 10, bot.size * 2, 5);
+      ctx.fillStyle = '#2ecc71';
+      const healthWidth = (bot.health / bot.maxHealth) * bot.size * 2;
+      ctx.fillRect(screenX - bot.size, screenY - bot.size - 10, healthWidth, 5);
+
+      // Bot name text
+      ctx.fillStyle = '#f39c12';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(bot.name, screenX, screenY + bot.size + 15);
+    });
+
+    // Draw players
+    Object.values(players).forEach(p => {
+      if (!p) return;
+      const screenX = p.x - camX;
+      const screenY = p.y - camY;
+
+      // Body with gradient fill for player
+      const gradient = ctx.createRadialGradient(screenX, screenY, p.size * 0.1, screenX, screenY, p.size);
+      gradient.addColorStop(0, '#2980b9');
+      gradient.addColorStop(1, '#1c5980');
+      ctx.fillStyle = gradient;
+      ctx.strokeStyle = '#3498db';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(screenX, screenY, p.size, p.size * 0.75, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Gun barrel rotated by angle
+      drawRotatedRect(screenX, screenY, p.size * 1.2, p.size * 0.3, p.angle, '#3498db', '#2980b9');
+
+      // Health bar
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(screenX - p.size, screenY - p.size - 12, p.size * 2, 6);
+      ctx.fillStyle = '#2ecc71';
+      const hpWidth = (p.health / p.maxHealth) * p.size * 2;
+      ctx.fillRect(screenX - p.size, screenY - p.size - 12, hpWidth, 6);
+
+      // Name text
+      ctx.fillStyle = '#f39c12';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name, screenX, screenY + p.size + 20);
+    });
+
+    // Draw projectiles
+    Object.values(projectiles).forEach(proj => {
+      const screenX = proj.x - camX;
+      const screenY = proj.y - camY;
+      ctx.save();
+      ctx.translate(screenX, screenY);
+      ctx.rotate(proj.angle);
+      ctx.fillStyle = '#f1c40f';
+      ctx.shadowColor = '#f39c12';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.rect(-proj.size / 2, -proj.size / 2, proj.size * 2, proj.size);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
     });
   }
 
-  // Update player angle to face mouse
-  currentPlayer.angle = Math.atan2(mousePos.y - canvas.height / 2, mousePos.x - canvas.width / 2);
-
-  // Auto fire if enabled
-  if (autoFire) shoot();
-
-  // Update camera to smoothly follow player
-  camera.x += (currentPlayer.x - camera.x - canvas.width / 2) * 0.1;
-  camera.y += (currentPlayer.y - camera.y - canvas.height / 2) * 0.1;
-
-  // Clear canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw map background
-  drawMap();
-
-  // Draw coins
-  Object.values(coins).forEach(drawCoin);
-
-  // Draw bots
-  Object.values(bots).forEach(drawBot);
-
-  // Draw projectiles
-  Object.values(projectiles).forEach(drawProjectile);
-
-  // Draw players
-  Object.values(players).forEach(drawPlayer);
-
-  // Draw UI overlays
-  drawUI();
-
-  // Draw minimap top-right
-  drawMinimap();
-
-  requestAnimationFrame(gameLoop);
-}
-
-function drawMap() {
-  // Gradient background simulating 3D depth
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, '#111a27');
-  gradient.addColorStop(1, '#0a0f15');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Grid lines for map depth
-  ctx.strokeStyle = '#00335544';
-  ctx.lineWidth = 1;
-  const gridSize = 100;
-  for (let x = -camera.x % gridSize; x < canvas.width; x += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-  for (let y = -camera.y % gridSize; y < canvas.height; y += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-}
-
-function drawPlayer(player) {
-  const screenX = player.x - camera.x;
-  const screenY = player.y - camera.y;
-
-  if (screenX < -100 || screenX > canvas.width + 100 || screenY < -100 || screenY > canvas.height + 100) return;
-
-  // Draw shadow
-  ctx.fillStyle = '#0008';
-  ctx.beginPath();
-  ctx.ellipse(screenX, screenY + player.size * 0.7, player.size * 0.8, player.size * 0.3, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Bot body with gradient for 3D effect
-  let grad = ctx.createRadialGradient(screenX, screenY, player.size * 0.2, screenX, screenY, player.size);
-  grad.addColorStop(0, player.color1);
-  grad.addColorStop(1, player.color2);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(screenX, screenY, player.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Draw health bar above player
-  const healthBarWidth = player.size * 2;
-  const healthRatio = player.health / player.maxHealth;
-  ctx.fillStyle = '#222';
-  ctx.fillRect(screenX - healthBarWidth / 2, screenY - player.size - 15, healthBarWidth, 6);
-  ctx.fillStyle = '#00ffaa';
-  ctx.fillRect(screenX - healthBarWidth / 2, screenY - player.size - 15, healthBarWidth * healthRatio, 6);
-  ctx.strokeStyle = '#003311';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(screenX - healthBarWidth / 2, screenY - player.size - 15, healthBarWidth, 6);
-
-  // Gun barrel
-  ctx.strokeStyle = '#004466';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(screenX, screenY);
-  ctx.lineTo(screenX + Math.cos(player.angle) * player.size * 1.3, screenY + Math.sin(player.angle) * player.size * 1.3);
-  ctx.stroke();
-
-  // Name
-  ctx.fillStyle = '#00d8ff';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(player.name, screenX, screenY - player.size - 25);
-
-  // Team indicator
-  if (player.team) {
-    ctx.fillStyle = player.team === 'red' ? 'rgba(255, 80, 80, 0.6)' : 'rgba(80, 150, 255, 0.6)';
-    ctx.beginPath();
-    ctx.arc(screenX, screenY + player.size + 8, 10, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawBot(bot) {
-  const screenX = bot.x - camera.x;
-  const screenY = bot.y - camera.y;
-
-  if (screenX < -100 || screenX > canvas.width + 100 || screenY < -100 || screenY > canvas.height + 100) return;
-
-  // Shadow
-  ctx.fillStyle = '#0008';
-  ctx.beginPath();
-  ctx.ellipse(screenX, screenY + bot.size * 0.7, bot.size * 0.9, bot.size * 0.4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Body gradient
-  let grad = ctx.createRadialGradient(screenX, screenY, bot.size * 0.3, screenX, screenY, bot.size);
-  grad.addColorStop(0, bot.color1);
-  grad.addColorStop(1, bot.color2);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(screenX, screenY, bot.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Saw blade (rotating)
-  ctx.strokeStyle = '#ff5500';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  const sawRadius = bot.size * 0.6;
-  for (let i = 0; i < 6; i++) {
-    const angle = bot.sawAngle + (i * Math.PI / 3);
-    const x1 = screenX + Math.cos(angle) * sawRadius;
-    const y1 = screenY + Math.sin(angle) * sawRadius;
-    const x2 = screenX + Math.cos(angle + Math.PI / 12) * sawRadius * 0.5;
-    const y2 = screenY + Math.sin(angle + Math.PI / 12) * sawRadius * 0.5;
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-  }
-  ctx.stroke();
-
-  // Health bar
-  const healthBarWidth = bot.size * 2;
-  const healthRatio = bot.health / bot.maxHealth;
-  ctx.fillStyle = '#222';
-  ctx.fillRect(screenX - healthBarWidth / 2, screenY - bot.size - 15, healthBarWidth, 6);
-  ctx.fillStyle = '#ff5500';
-  ctx.fillRect(screenX - healthBarWidth / 2, screenY - bot.size - 15, healthBarWidth * healthRatio, 6);
-  ctx.strokeStyle = '#330000';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(screenX - healthBarWidth / 2, screenY - bot.size - 15, healthBarWidth, 6);
-
-  // Name
-  ctx.fillStyle = '#ff7700';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(bot.name, screenX, screenY - bot.size - 25);
-}
-
-function drawCoin(coin) {
-  const screenX = coin.x - camera.x;
-  const screenY = coin.y - camera.y;
-
-  if (screenX < -20 || screenX > canvas.width + 20 || screenY < -20 || screenY > canvas.height + 20) return;
-
-  ctx.fillStyle = 'gold';
-  ctx.beginPath();
-  ctx.arc(screenX, screenY, coin.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = '#bb9900';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
-function drawProjectile(proj) {
-  const screenX = proj.x - camera.x;
-  const screenY = proj.y - camera.y;
-
-  if (screenX < -10 || screenX > canvas.width + 10 || screenY < -10 || screenY > canvas.height + 10) return;
-
-  ctx.fillStyle = '#00ffff';
-  ctx.beginPath();
-  ctx.arc(screenX, screenY, proj.size, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Draw UI overlays
-function drawUI() {
-  if (!currentPlayer) return;
-
-  // Health bar fill width (smooth)
-  const healthPercent = currentPlayer.health / currentPlayer.maxHealth;
-  healthFill.style.width = `${healthPercent * 100}%`;
-
-  // Scoreboard
-  scoreboard.textContent = `Score: ${currentPlayer.score} | Coins: ${currentPlayer.coins} | Auto Fire: ${autoFire ? 'ON' : 'OFF'}`;
-}
-
-// Draw minimap top-right corner
-function drawMinimap() {
-  const miniSize = 200;
-  const margin = 20;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(canvas.width - miniSize - margin, margin, miniSize, miniSize);
-  ctx.fillStyle = '#000c';
-  ctx.fill();
-  ctx.strokeStyle = '#00d8ff55';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Scale to map size
-  const scaleX = miniSize / MAP_WIDTH;
-  const scaleY = miniSize / MAP_HEIGHT;
-
-  // Draw coins on minimap
-  Object.values(coins).forEach(coin => {
-    ctx.fillStyle = 'gold';
-    ctx.beginPath();
-    ctx.arc(canvas.width - miniSize - margin + coin.x * scaleX, margin + coin.y * scaleY, 4, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Draw bots on minimap
-  Object.values(bots).forEach(bot => {
-    ctx.fillStyle = '#ff5500';
-    ctx.beginPath();
-    ctx.arc(canvas.width - miniSize - margin + bot.x * scaleX, margin + bot.y * scaleY, 5, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Draw players on minimap
-  Object.values(players).forEach(player => {
-    ctx.fillStyle = player.team === 'red' ? '#ff4444' : (player.team === 'blue' ? '#44aaff' : '#00ffff');
-    ctx.beginPath();
-    ctx.arc(canvas.width - miniSize - margin + player.x * scaleX, margin + player.y * scaleY, 6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Draw current player highlight
-  if (currentPlayer) {
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(canvas.width - miniSize - margin + currentPlayer.x * scaleX, margin + currentPlayer.y * scaleY, 8, 0, Math.PI * 2);
-    ctx.stroke();
+  // Leaderboard render
+  function renderLeaderboard() {
+    leaderboardList.innerHTML = '';
+    leaderboard.forEach(({ name, score, coins }) => {
+      const li = document.createElement('li');
+      li.textContent = `${name} — ${score} pts, ${coins} coins`;
+      leaderboardList.appendChild(li);
+    });
   }
 
-  ctx.restore();
-}
-
-// Upgrade system logic
-upgradesPanel.addEventListener('click', e => {
-  if (!e.target.classList.contains('upgrade-btn')) return;
-  const upgradeType = e.target.dataset.upgrade;
-
-  if (upgrades[upgradeType] >= MAX_LEVELS[upgradeType]) return alert('Max level reached!');
-
-  const cost = (upgrades[upgradeType] + 1) * 5;
-
-  if (!currentPlayer || currentPlayer.coins < cost) return alert('Not enough coins!');
-
-  currentPlayer.coins -= cost;
-  upgrades[upgradeType]++;
-  
-  // Apply upgrades effects
-  switch (upgradeType) {
-    case 'damage': currentPlayer.damage += 2; break;
-    case 'bulletSpeed': /* bullet speed handled client-side */ break;
-    case 'health':
-      currentPlayer.maxHealth += 10;
-      currentPlayer.health = currentPlayer.maxHealth;
-      break;
-    case 'regen':
-      // Regen handled below
-      break;
-    case 'reload':
-      // Reload speed handled in shoot cooldown
-      break;
-  }
-
-  alert(`Upgraded ${upgradeType} to level ${upgrades[upgradeType]}`);
-});
-
-// Health regen loop
-setInterval(() => {
-  if (!currentPlayer) return;
-  if (currentPlayer.health < currentPlayer.maxHealth) {
-    currentPlayer.health = Math.min(currentPlayer.maxHealth, currentPlayer.health + 0.1 * (upgrades.regen + 1));
-  }
-}, 100);
-
-// Start game loop
-requestAnimationFrame(gameLoop);
+  // Start main loop
+  gameLoop();
+})();

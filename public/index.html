@@ -1,50 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BattleBots.io</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>BattleBots.io</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="main-menu" class="menu visible">
+  <div id="main-menu" class="menu-screen">
     <h1>BattleBots.io</h1>
-    <input id="player-name" placeholder="Enter your name" maxlength="12" />
-    <select id="game-mode-select">
-      <option value="Free For All">Free For All</option>
-      <option value="Team Deathmatch">Team Deathmatch</option>
+    <input type="text" id="player-name" placeholder="Enter your name" maxlength="15" autocomplete="off" />
+    <select id="game-mode">
+      <option value="classic">Classic Mode</option>
+      <option value="fast">Fast Mode</option>
+      <option value="hardcore">Hardcore Mode</option>
     </select>
-    <div id="team-select-container" style="display:none;">
-      <label><input type="radio" name="team" value="red" checked /> Red Team</label>
-      <label><input type="radio" name="team" value="blue" /> Blue Team</label>
-    </div>
-    <button id="play-button">Play</button>
+    <button id="play-btn">Play</button>
   </div>
 
-  <div id="game-container" class="hidden">
-    <canvas id="game-canvas" width="1600" height="900"></canvas>
+  <canvas id="gameCanvas"></canvas>
 
-    <div id="ui-overlay">
-      <div id="health-bar">
-        <div id="health-fill"></div>
-      </div>
-      <div id="scoreboard">Score: 0 | Coins: 0</div>
-      <div id="leaderboard">
-        <h3>Leaderboard</h3>
-        <ul id="leaderboard-list"></ul>
-      </div>
-      <div id="upgrades-panel">
-        <h3>Upgrades</h3>
-        <button class="upgrade-btn" data-upgrade="damage">Damage</button>
-        <button class="upgrade-btn" data-upgrade="bulletSpeed">Bullet Speed</button>
-        <button class="upgrade-btn" data-upgrade="health">Health</button>
-        <button class="upgrade-btn" data-upgrade="regen">Health Regen</button>
-        <button class="upgrade-btn" data-upgrade="reload">Reload Speed</button>
-      </div>
+  <div id="ui" class="hidden">
+    <div id="scoreboard">
+      <h2>Leaderboard</h2>
+      <ul id="leaderboard-list"></ul>
+    </div>
+
+    <div id="player-stats">
+      <div>Health: <span id="health">100</span></div>
+      <div>Coins: <span id="coins">0</span></div>
+      <button id="upgrade-btn">Upgrades</button>
+    </div>
+
+    <div id="upgrades-panel" class="hidden">
+      <button id="close-upgrades">X</button>
+      <h2>Upgrade Your Bot</h2>
+      <ul>
+        <li><button class="upgrade" data-upgrade="damage">Damage</button></li>
+        <li><button class="upgrade" data-upgrade="reloadSpeed">Reload Speed</button></li>
+        <li><button class="upgrade" data-upgrade="bulletSpeed">Bullet Speed</button></li>
+        <li><button class="upgrade" data-upgrade="health">Health</button></li>
+        <li><button class="upgrade" data-upgrade="healthRegen">Health Regen</button></li>
+      </ul>
+      <div id="upgrade-message"></div>
     </div>
   </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="client.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>

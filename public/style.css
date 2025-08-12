@@ -1,167 +1,231 @@
-/* style.css */
-
-body {
-  margin: 0;
+/* Reset */
+* {
+  margin: 0; padding: 0; box-sizing: border-box; user-select: none;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #0d1117, #161b22);
-  color: #ccc;
+}
+
+body, html {
+  width: 100%; height: 100%; background: #111 url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80') no-repeat center center fixed;
+  background-size: cover;
   overflow: hidden;
+  color: #eee;
 }
 
-.menu {
+.menu-screen {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  background: #1f2937dd;
-  border-radius: 15px;
-  padding: 40px 60px;
+  background: rgba(0,0,0,0.85);
+  padding: 30px 40px;
+  border-radius: 20px;
   text-align: center;
-  box-shadow: 0 0 15px #00d8ffaa;
+  width: 90vw;
+  max-width: 400px;
+  box-shadow: 0 0 30px #f39c12;
 }
 
-.menu.visible {
-  display: block;
+.menu-screen h1 {
+  font-size: 3rem;
+  color: #f39c12;
+  margin-bottom: 25px;
+  text-shadow: 0 0 12px #e67e22;
 }
 
-.menu input,
-.menu select {
-  width: 240px;
-  margin: 15px 0;
-  padding: 10px;
+.menu-screen input,
+.menu-screen select,
+.menu-screen button {
+  width: 100%;
+  padding: 14px 10px;
+  margin: 12px 0;
   border-radius: 10px;
   border: none;
-  font-size: 18px;
-  background: #111827;
-  color: #00d8ff;
+  font-size: 1.1rem;
   outline: none;
-}
-
-.menu button {
-  margin-top: 20px;
-  background: #00d8ff;
-  color: #0d1117;
-  font-weight: bold;
-  font-size: 20px;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 25px;
+  transition: all 0.3s ease;
+  background-color: #222;
+  color: #f39c12;
+  box-shadow: inset 0 0 8px #f39c12;
   cursor: pointer;
-  transition: background 0.3s ease;
 }
 
-.menu button:hover {
-  background: #0090c5;
+.menu-screen input::placeholder {
+  color: #f39c12;
+  opacity: 0.6;
 }
 
-.hidden {
+.menu-screen button:hover,
+.menu-screen select:hover,
+.menu-screen input:hover {
+  background-color: #f39c12;
+  color: #222;
+  box-shadow: 0 0 15px #e67e22;
+}
+
+#gameCanvas {
   display: none;
-}
-
-#game-container {
-  position: relative;
+  background: #222;
   width: 100vw;
   height: 100vh;
-  background: #0a0f15;
-  overflow: hidden;
 }
 
-#game-canvas {
-  display: block;
-  background: linear-gradient(180deg, #1b263b 0%, #0a0f15 100%);
-  margin: 0 auto;
-  box-shadow: 0 0 20px #00d8ff;
-}
-
-#ui-overlay {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  width: 350px;
-  color: #00d8ff;
-  font-weight: 600;
+#ui {
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  color: #f39c12;
+  text-shadow: 0 0 8px #e67e22;
   user-select: none;
 }
 
-#health-bar {
-  width: 350px;
-  height: 25px;
-  background: #222;
-  border-radius: 15px;
-  overflow: hidden;
-  box-shadow: 0 0 10px #00d8ffaa inset;
-  margin-bottom: 15px;
-}
-
-#health-fill {
-  height: 100%;
-  width: 100%;
-  background: #00ffea;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 15px #00fffbaa;
-}
-
 #scoreboard {
-  font-size: 18px;
-  margin-bottom: 20px;
-}
-
-#leaderboard {
-  background: #111a27cc;
-  border-radius: 15px;
-  padding: 15px;
-  max-height: 280px;
-  overflow-y: auto;
-  box-shadow: 0 0 15px #0090c5;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px 15px;
+  border-radius: 10px;
+  max-width: 220px;
   margin-bottom: 15px;
 }
 
-#leaderboard h3 {
-  margin: 0 0 10px;
-  color: #00d8ff;
-  font-weight: 700;
+#scoreboard h2 {
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+  border-bottom: 1px solid #e67e22;
+  padding-bottom: 4px;
 }
 
 #leaderboard-list {
   list-style: none;
-  padding: 0;
-  margin: 0;
-  font-size: 16px;
+  max-height: 180px;
+  overflow-y: auto;
 }
 
 #leaderboard-list li {
-  margin-bottom: 8px;
-  color: #80d8ff;
+  padding: 4px 6px;
+  border-bottom: 1px solid #e67e22;
+  font-size: 1rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+#player-stats {
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px 15px;
+  border-radius: 10px;
+  width: 220px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#player-stats div {
+  font-size: 1.1rem;
+}
+
+#upgrade-btn {
+  background: #f39c12;
+  border: none;
+  color: #222;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 8px 14px;
+  transition: background-color 0.3s ease;
+}
+
+#upgrade-btn:hover {
+  background: #e67e22;
 }
 
 #upgrades-panel {
-  background: #111a27cc;
-  border-radius: 15px;
-  padding: 15px;
-  box-shadow: 0 0 15px #0090c5;
-  max-width: 350px;
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.9);
+  color: #f39c12;
+  padding: 20px 30px;
+  border-radius: 20px;
+  width: 280px;
+  box-shadow: 0 0 40px #e67e22;
+  z-index: 9999;
+  user-select: none;
 }
 
-#upgrades-panel h3 {
-  margin-top: 0;
-  color: #00d8ff;
-  font-weight: 700;
+#upgrades-panel.hidden {
+  display: none;
+}
+
+#upgrades-panel h2 {
+  text-align: center;
   margin-bottom: 15px;
+  font-size: 1.8rem;
+  border-bottom: 1px solid #e67e22;
+  padding-bottom: 8px;
 }
 
-.upgrade-btn {
-  background: #005f8a;
+#upgrades-panel ul {
+  list-style: none;
+}
+
+#upgrades-panel li {
+  margin: 10px 0;
+}
+
+#upgrades-panel button.upgrade {
+  width: 100%;
+  padding: 10px 0;
+  font-size: 1.1rem;
+  background: #222;
+  color: #f39c12;
   border: none;
   border-radius: 12px;
-  padding: 10px 20px;
-  margin: 6px 6px 6px 0;
-  font-size: 16px;
-  color: #00d8ff;
   cursor: pointer;
-  transition: background 0.3s ease;
-  box-shadow: 0 0 5px #007dbf;
+  transition: background-color 0.3s ease;
+  box-shadow: inset 0 0 10px #f39c12;
 }
 
-.upgrade-btn:hover {
-  background: #008cdb;
+#upgrades-panel button.upgrade:hover {
+  background: #f39c12;
+  color: #222;
+  box-shadow: 0 0 12px #e67e22;
+}
+
+#close-upgrades {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #f39c12;
+  font-size: 1.6rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#upgrade-message {
+  text-align: center;
+  margin-top: 10px;
+  min-height: 20px;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Responsive adjustments */
+
+@media (max-width: 768px) {
+  #scoreboard, #player-stats {
+    width: 90vw;
+    max-width: none;
+  }
+
+  #upgrades-panel {
+    width: 90vw;
+    padding: 15px 20px;
+  }
+
+  .menu-screen {
+    width: 90vw;
+  }
 }
