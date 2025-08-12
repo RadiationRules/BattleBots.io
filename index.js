@@ -5,6 +5,7 @@ const io = require('socket.io')(http);
 
 const PORT = process.env.PORT || 5000;
 
+// Serve static files from 'public' folder
 app.use(express.static('public'));
 
 // Game constants
@@ -19,7 +20,7 @@ const PLAYER_SPEED = 4;
 const BOT_SPEED = 2;
 const SHOOT_COOLDOWN = 300; // ms
 
-// Game state containers
+// Game state
 const players = {};
 const bots = {};
 const projectiles = {};
@@ -29,7 +30,7 @@ let botIdCounter = 1;
 let projectileIdCounter = 1;
 let coinIdCounter = 1;
 
-// Utility function for random positions inside the map, with padding
+// Generate random position inside map boundaries with padding
 function randomPosition(size) {
   return {
     x: Math.random() * (MAP_WIDTH - size * 2) + size,
@@ -37,7 +38,7 @@ function randomPosition(size) {
   };
 }
 
-// Create a new AI bot object
+// Create a bot object
 function createBot() {
   const pos = randomPosition(BOT_SIZE);
   return {
@@ -50,12 +51,12 @@ function createBot() {
     speed: BOT_SPEED,
     angle: Math.random() * Math.PI * 2,
     sawAngle: 0,
-    color1: '#f39c12', // bright orange
+    color1: '#f39c12',
     color2: '#e67e22',
   };
 }
 
-// Create a coin at (x, y)
+// Create coin object
 function createCoin(x, y) {
   return {
     id: 'coin' + coinIdCounter++,
@@ -66,12 +67,12 @@ function createCoin(x, y) {
   };
 }
 
-// Create initial bots
+// Spawn initial bots
 for (let i = 0; i < 6; i++) {
   bots['bot' + i] = createBot();
 }
 
-// Helper: broadcast leaderboard top 5 every second
+// Broadcast leaderboard top 5 every second
 function broadcastLeaderboard() {
   const topPlayers = Object.values(players)
     .sort((a, b) => b.score - a.score)
@@ -80,11 +81,11 @@ function broadcastLeaderboard() {
   io.emit('leaderboard', topPlayers);
 }
 
-// Player connects
+// On player connection
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  // Wait for 'playerJoined' event to initialize player (after client ready)
+  // Initialize player on 'playerJoined' event
   socket.on('playerJoined', () => {
     const pos = randomPosition(PLAYER_SIZE);
     players[socket.id] = {
@@ -97,25 +98,23 @@ io.on('connection', (socket) => {
       score: 0,
       coins: 0,
       angle: 0,
-      color1: '#3498db', // bright blue
+      color1: '#3498db',
       color2: '#2980b9',
       lastShot: 0,
       speed: PLAYER_SPEED,
       damage: 20,
     };
 
-    // Send initial game state to this player
     socket.emit('init', { players, bots, coins, projectiles });
-    // Notify others of new player
     socket.broadcast.emit('newPlayer', players[socket.id]);
   });
 
-  // Player movement update
+  // Movement update
   socket.on('playerMovement', (data) => {
     const player = players[socket.id];
     if (!player) return;
 
-    // Clamp position inside map boundaries
+    // Clamp player position inside map
     player.x = Math.max(player.size, Math.min(data.x, MAP_WIDTH - player.size));
     player.y = Math.max(player.size, Math.min(data.y, MAP_HEIGHT - player.size));
     player.angle = data.angle;
@@ -123,13 +122,13 @@ io.on('connection', (socket) => {
     io.emit('updatePlayers', players);
   });
 
-  // Player shoots
+  // Shooting handler
   socket.on('shoot', () => {
     const player = players[socket.id];
     if (!player) return;
 
     const now = Date.now();
-    if (now - player.lastShot < SHOOT_COOLDOWN) return; // enforce cooldown
+    if (now - player.lastShot < SHOOT_COOLDOWN) return;
 
     player.lastShot = now;
 
@@ -149,7 +148,7 @@ io.on('connection', (socket) => {
     io.emit('newProjectile', projectile);
   });
 
-  // Player disconnects
+  // Player disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
     delete players[socket.id];
@@ -157,30 +156,30 @@ io.on('connection', (socket) => {
   });
 });
 
-// Game main loop runs every 50ms (20 FPS)
+// Game loop 20 times per second (every 50 ms)
 setInterval(() => {
-  // Move bots
+  // Move bots and update state
   for (const id in bots) {
     const bot = bots[id];
     bot.x += Math.cos(bot.angle) * bot.speed;
     bot.y += Math.sin(bot.angle) * bot.speed;
 
-    // Bounce off walls
+    // Bounce bots off walls
     if (bot.x < bot.size || bot.x > MAP_WIDTH - bot.size) bot.angle = Math.PI - bot.angle;
     if (bot.y < bot.size || bot.y > MAP_HEIGHT - bot.size) bot.angle = -bot.angle;
 
-    bot.sawAngle += 0.15; // rotate saw
-    bot.health = Math.min(bot.health + 0.02, bot.maxHealth); // regen slowly
-    bot.angle += (Math.random() - 0.5) * 0.2; // random wobble
+    bot.sawAngle += 0.15;
+    bot.health = Math.min(bot.health + 0.02, bot.maxHealth);
+    bot.angle += (Math.random() - 0.5) * 0.2;
   }
 
-  // Move projectiles & check collisions
+  // Move projectiles and check for collisions
   for (const id in projectiles) {
     const p = projectiles[id];
     p.x += Math.cos(p.angle) * p.speed;
     p.y += Math.sin(p.angle) * p.speed;
 
-    // Remove projectile if outside map
+    // Remove projectiles outside map
     if (p.x < 0 || p.x > MAP_WIDTH || p.y < 0 || p.y > MAP_HEIGHT) {
       delete projectiles[id];
       io.emit('removeProjectile', id);
@@ -197,17 +196,13 @@ setInterval(() => {
 
         if (players[p.owner]) players[p.owner].score += 1;
 
-        // Bot died
         if (bot.health <= 0) {
-          // Spawn coin at bot death position
           const coin = createCoin(bot.x, bot.y);
           coins[coin.id] = coin;
           io.emit('spawnCoin', coin);
 
-          // Respawn bot
           bots[botId] = createBot();
 
-          // Reward player coins and score
           if (players[p.owner]) {
             players[p.owner].score += 10;
             players[p.owner].coins += coin.value;
@@ -223,7 +218,7 @@ setInterval(() => {
     }
   }
 
-  // Check coin pickups
+  // Coin pickups
   for (const playerId in players) {
     const player = players[playerId];
     for (const coinId in coins) {
@@ -241,15 +236,14 @@ setInterval(() => {
     }
   }
 
-  // Broadcast updated bots & projectiles state every tick
+  // Emit updates every tick
   io.emit('updateBots', bots);
   io.emit('updateProjectiles', projectiles);
   io.emit('updateCoins', coins);
 
-  // Broadcast leaderboard every second
 }, 50);
 
-// Leaderboard broadcast every 1 second
+// Broadcast leaderboard every second
 setInterval(() => {
   broadcastLeaderboard();
 }, 1000);
