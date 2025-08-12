@@ -1,94 +1,185 @@
-/* Full canvas behind menu, fills viewport */
-html, body {
-  margin: 0; padding: 0; height: 100%; overflow: hidden;
-  background: #111;
+/* Reset */
+* {
+  margin: 0; padding: 0; box-sizing: border-box; user-select: none;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-#gameCanvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  background: #121212;
-  border-radius: 0;
-  box-shadow: none;
-  width: 100vw;
-  height: 100vh;
-  object-fit: cover;
+/* Main Menu */
+.menu {
+  width: 400px;
+  margin: 60px auto;
+  text-align: center;
+  background: rgba(20, 20, 20, 0.9);
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 15px #00bfff;
+  color: #00bfff;
 }
 
-/* Menu overlay styles */
-.menu-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.75);
+.menu h1 {
+  font-size: 3em;
+  margin-bottom: 20px;
+  text-shadow: 0 0 8px #00bfff;
+}
+
+.menu input {
+  width: 90%;
+  font-size: 1.1em;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  margin-bottom: 20px;
+}
+
+.menu button {
+  width: 50%;
+  background: #00bfff;
+  color: #000;
+  font-weight: bold;
+  padding: 12px;
+  font-size: 1.2em;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.menu button:hover {
+  background: #0080ff;
+}
+
+.menu .hint {
+  margin-top: 15px;
+  font-size: 0.9em;
+  color: #777;
+}
+
+/* Game Canvas */
+#gameCanvas {
+  background: #222;
+  display: block;
+  margin: 10px auto;
+  border-radius: 12px;
+  box-shadow: 0 0 15px #00bfff;
+  position: relative;
+}
+
+/* Game UI */
+#gameUI {
+  width: 900px;
+  margin: 0 auto;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 0 10px 20px 10px;
+  color: #00bfff;
+  text-shadow: 0 0 6px #00bfff;
+  font-weight: 600;
+}
+
+/* Stats Panel */
+#statsPanel {
+  width: 250px;
+  background: rgba(0, 0, 50, 0.7);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 0 12px #004080;
+}
+
+/* Upgrade Panel */
+#upgradePanel {
+  width: 300px;
+  background: rgba(0, 0, 50, 0.7);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 0 12px #004080;
+}
+
+#upgradePanel h3 {
+  text-align: center;
+  margin-bottom: 12px;
+  font-weight: 700;
+  color: #00ffff;
+}
+
+.upgrade {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0;
+  font-size: 1.1em;
   align-items: center;
-  z-index: 9999;
+}
+
+.upgrade button {
+  background: #00bfff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #000;
+  transition: background 0.3s;
+}
+
+.upgrade button:hover {
+  background: #0080ff;
+}
+
+/* Leaderboard Panel */
+#leaderboardPanel {
+  width: 250px;
+  background: rgba(0, 0, 50, 0.7);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 0 12px #004080;
+}
+
+#leaderboardPanel h3 {
+  text-align: center;
+  margin-bottom: 12px;
+  font-weight: 700;
+  color: #00ffff;
+}
+
+#leaderboardList {
+  list-style: none;
+  font-size: 1.1em;
+}
+
+#leaderboardList li {
+  margin: 6px 0;
+  padding: 6px;
+  border-bottom: 1px solid #0080ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mini Map */
+#miniMap {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 220px;
+  height: 140px;
+  background: rgba(0, 0, 50, 0.7);
+  border-radius: 12px;
+  box-shadow: 0 0 15px #00bfff;
+  overflow: hidden;
+  z-index: 1000;
+  cursor: default;
   user-select: none;
 }
 
-.menu-container {
-  background: rgba(20, 20, 20, 0.9);
-  padding: 40px 50px;
-  border-radius: 15px;
-  box-shadow: 0 0 30px #00bfff;
-  text-align: center;
-  width: 320px;
-  color: #00bfff;
-}
-
-.menu-container h1 {
-  font-size: 3.5rem;
-  margin-bottom: 30px;
-  text-shadow: 0 0 12px #00bfff;
-  font-weight: 900;
-}
-
-.menu-container input {
-  width: 100%;
-  font-size: 1.3rem;
-  padding: 15px;
-  border-radius: 10px;
-  border: none;
-  outline: none;
-  margin-bottom: 25px;
-  background: #222;
-  color: #00bfff;
-  box-shadow: inset 0 0 8px #00bfff;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-
-.menu-container input::placeholder {
-  color: #55aaff;
-  font-weight: 400;
-}
-
-.menu-container button {
-  width: 100%;
-  font-size: 1.5rem;
-  padding: 15px 0;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(90deg, #00bfff, #0080ff);
-  color: #000;
-  font-weight: 900;
-  box-shadow: 0 0 20px #00bfff;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
-}
-
-.menu-container button:hover {
-  background: linear-gradient(90deg, #0080ff, #005fbb);
-  box-shadow: 0 0 30px #0080ff;
-}
-
-.menu-container .hint {
-  margin-top: 18px;
-  font-size: 0.9rem;
-  color: #44bbffcc;
-  font-style: italic;
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: rgba(0,0,0,0.7);
+  color: #0ff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  font-size: 0.9em;
+  font-weight: 700;
+  white-space: nowrap;
 }

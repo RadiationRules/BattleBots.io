@@ -443,22 +443,23 @@ function drawMiniMap(camX, camY) {
   mmCtx.strokeRect(camX * scaleX, camY * scaleY, VIEW_WIDTH * scaleX, VIEW_HEIGHT * scaleY);
 }
 
-// Always run game loop, so background animates even at menu
+// --- Main Loop ---
 function gameLoop() {
-  // Even if not playing, draw current game state for background effect
-  draw();
+  if (!inGame) return;
 
-  if (inGame) {
-    sendMovement();
+  sendMovement();
 
-    if (autofire) {
-      const now = Date.now();
-      if (now - lastAutoShot > AUTO_FIRE_INTERVAL) {
-        socket.emit('shoot');
-        lastAutoShot = now;
-      }
+  if (autofire) {
+    const now = Date.now();
+    if (now - lastAutoShot > AUTO_FIRE_INTERVAL) {
+      socket.emit('shoot');
+      lastAutoShot = now;
     }
   }
+
+  draw();
+
   requestAnimationFrame(gameLoop);
 }
+
 gameLoop();
