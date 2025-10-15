@@ -1,3 +1,8 @@
+let players = {};
+let bullets = [];
+let bots = [];
+let leaderboard = [];
+let powerups = [];
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,50 +12,208 @@ const server = http.createServer(app);
 const io = new Server(server);
 const PORT = 3000;
 app.use(express.static(path.join(__dirname, '../frontend')));
-let players = {}, bullets = [], bots = [], leaderboard = [];
+// ...existing code...
 function createBot(id) {
     return {id,name:'Bot_'+id,type:['tank','rammer','sniper'][Math.floor(Math.random()*3)],x:Math.random()*1600-800,y:Math.random()*1600-800,angle:Math.random()*Math.PI*2,health:100,score:0,isBot:true,cooldown:0};
 }
-setInterval(() => {
-    bots.forEach(bot => {
-        let nearest=null,minDist=99999;
-        for(const pid in players){const p=players[pid];const dx=p.x-bot.x,dy=p.y-bot.y;const dist=Math.sqrt(dx*dx+dy*dy);if(dist<minDist){minDist=dist;nearest=p;}}
-        if(bot.health<30&&nearest){const dx=bot.x-nearest.x,dy=bot.y-nearest.y;bot.x+=dx/minDist*4;bot.y+=dy/minDist*4;}
-        else if(nearest){const dx=nearest.x-bot.x,dy=nearest.y-bot.y;bot.x+=dx/minDist*2;bot.y+=dy/minDist*2;bot.angle=Math.atan2(dy,dx);if(bot.cooldown<=0){bullets.push({id:Math.random(),owner:bot.id,x:bot.x,y:bot.y,angle:bot.angle,type:bot.type,pierce:bot.type==='sniper'?2:0,life:60});bot.cooldown=40;}}
-        if(bot.cooldown>0)bot.cooldown--;
-    });
-    bullets.forEach(bullet=>{bullet.x+=Math.cos(bullet.angle)*16;bullet.y+=Math.sin(bullet.angle)*16;bullet.life--;});
-    bullets=bullets.filter(b=>b.life>0);
-    bullets.forEach(bullet=>{
-        for(const pid in players){
-            const p=players[pid];
-            if(bullet.owner!==pid){
-                const dx=bullet.x-p.x,dy=bullet.y-p.y;
-                if(dx*dx+dy*dy<900){
-                    let dmg=bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
-                    if(p.shield)dmg=Math.max(0,dmg-30);
-                    p.health-=dmg;
-                    if(bullet.pierce)bullet.pierce--;else bullet.life=0;
-                    if(p.health<=0){p.health=100;p.x=Math.random()*1600-800;p.y=Math.random()*1600-800;players[bullet.owner]&&(players[bullet.owner].score+=100);}
-                }
-            }
+
+    setInterval(() => {
+        // Powerup spawn
+        if (powerups.length < 5 && Math.random() < 0.02) {
+            const types = ['coin','health','shield','speed'];
+            powerups.push({
+                id: Math.random(),
+                type: types[Math.floor(Math.random()*types.length)],
+                x: Math.random()*1600-800,
+                y: Math.random()*1600-800,
+            });
         }
-        bots.forEach(bot=>{
-            if(bullet.owner!==bot.id){
-                const dx=bullet.x-bot.x,dy=bullet.y-bot.y;
-                if(dx*dx+dy*dy<900){
-                    let dmg=bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
-                    bot.health-=dmg;
-                    if(bullet.pierce)bullet.pierce--;else bullet.life=0;
-                    if(bot.health<=0){bot.health=100;bot.x=Math.random()*1600-800;bot.y=Math.random()*1600-800;players[bullet.owner]&&(players[bullet.owner].score+=50);}
+
+        bots.forEach(bot => {
+            // Pick a random target: player or another bot (not self)
+            let allTargets = Object.values(players).concat(bots.filter(b=>b.id!==bot.id));
+            let target = allTargets[Math.floor(Math.random()*allTargets.length)];
+            if (!target) return;
+            let dx = target.x-bot.x, dy = target.y-bot.y;
+            let dist = Math.sqrt(dx*dx+dy*dy);
+            if (bot.health < 30) {
+                bot.x += (bot.x-target.x)/dist*4;
+                bot.y += (bot.y-target.y)/dist*4;
+            } else {
+                bot.x += dx/dist*2;
+                bot.y += dy/dist*2;
+                bot.angle = Math.atan2(dy,dx);
+                if (bot.cooldown <= 0) {
+                    bullets.push({
+                        id: Math.random(),
+                        owner: bot.id,
+                        x: bot.x,
+                        y: bot.y,
+                        angle: bot.angle,
+                        type: bot.type,
+                        pierce: bot.type==='sniper'?2:0,
+                        life: 60,
+                    });
+                    bot.cooldown = 40;
                 }
             }
+            if (bot.cooldown > 0) bot.cooldown--;
         });
-    });
-    leaderboard=Object.values(players).sort((a,b)=>b.score-a.score).slice(0,10).map(p=>({name:p.name,score:p.score}));
-    io.emit('gameState',{players:Object.values(players),bullets,bots,leaderboard});
-},1000/30);
-for(let i=0;i<8;i++)bots.push(createBot('bot'+i));
+
+        // Powerup collection
+        Object.values(players).forEach(p => {
+            powerups.forEach((pw, idx) => {
+                const dx = pw.x-p.x, dy = pw.y-p.y;
+                if (dx*dx+dy*dy < 900) {
+                    if (!p.coins) p.coins = 0;
+                    if (!p.upgrades) p.upgrades = {speed:0,damage:0,health:0};
+                    if (pw.type==='coin') p.coins += 5;
+                    if (pw.type==='health') p.health = Math.min(100, p.health+30);
+                    if (pw.type==='shield') p.shield = true;
+                    if (pw.type==='speed') p.upgrades.speed += 1;
+                    powerups.splice(idx,1);
+                }
+            });
+        });
+
+        // Coin earning for kills
+        bullets.forEach(bullet => {
+            for (const pid in players) {
+                const p = players[pid];
+                if (bullet.owner !== pid) {
+                    const dx = bullet.x-p.x, dy = bullet.y-p.y;
+                    if (dx*dx+dy*dy < 900) {
+                        let dmg = bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
+                        if (p.shield) dmg = Math.max(0,dmg-30);
+                        p.health -= dmg;
+                        if (bullet.pierce) bullet.pierce--; else bullet.life=0;
+                        if (p.health<=0) {
+                            p.health=100; p.x=Math.random()*1600-800; p.y=Math.random()*1600-800;
+                            players[bullet.owner] && (players[bullet.owner].score+=100);
+                            players[bullet.owner] && (players[bullet.owner].coins = (players[bullet.owner].coins||0)+10);
+                        }
+                    }
+                }
+            }
+            bots.forEach(bot => {
+                if (bullet.owner !== bot.id) {
+                    const dx = bullet.x-bot.x, dy = bullet.y-bot.y;
+                    if (dx*dx+dy*dy < 900) {
+                        let dmg = bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
+                        bot.health -= dmg;
+                        if (bullet.pierce) bullet.pierce--; else bullet.life=0;
+                        if (bot.health<=0) {
+                            bot.health=100; bot.x=Math.random()*1600-800; bot.y=Math.random()*1600-800;
+                            players[bullet.owner] && (players[bullet.owner].score+=50);
+                            players[bullet.owner] && (players[bullet.owner].coins = (players[bullet.owner].coins||0)+5);
+                        }
+                    }
+                }
+            });
+        });
+
+        leaderboard=Object.values(players).sort((a,b)=>b.score-a.score).slice(0,10).map(p=>({name:p.name,score:p.score,coins:p.coins||0}));
+        io.emit('gameState',{players:Object.values(players),bullets,bots,leaderboard,powerups});
+    },1000/30);
+
+    setInterval(() => {
+        // Powerup spawn
+        if (powerups.length < 5 && Math.random() < 0.02) {
+            const types = ['coin','health','shield','speed'];
+            powerups.push({
+                id: Math.random(),
+                type: types[Math.floor(Math.random()*types.length)],
+                x: Math.random()*1600-800,
+                y: Math.random()*1600-800,
+            });
+        }
+
+        bots.forEach(bot => {
+            // ...existing bot AI code...
+            let allTargets = Object.values(players).concat(bots.filter(b=>b.id!==bot.id));
+            let target = allTargets[Math.floor(Math.random()*allTargets.length)];
+            if (!target) return;
+            let dx = target.x-bot.x, dy = target.y-bot.y;
+            let dist = Math.sqrt(dx*dx+dy*dy);
+            if (bot.health < 30) {
+                bot.x += (bot.x-target.x)/dist*4;
+                bot.y += (bot.y-target.y)/dist*4;
+            } else {
+                bot.x += dx/dist*2;
+                bot.y += dy/dist*2;
+                bot.angle = Math.atan2(dy,dx);
+                if (bot.cooldown <= 0) {
+                    bullets.push({
+                        id: Math.random(),
+                        owner: bot.id,
+                        x: bot.x,
+                        y: bot.y,
+                        angle: bot.angle,
+                        type: bot.type,
+                        pierce: bot.type==='sniper'?2:0,
+                        life: 60,
+                    });
+                    bot.cooldown = 40;
+                }
+            }
+            if (bot.cooldown > 0) bot.cooldown--;
+        });
+
+        // Powerup collection
+        Object.values(players).forEach(p => {
+            powerups.forEach((pw, idx) => {
+                const dx = pw.x-p.x, dy = pw.y-p.y;
+                if (dx*dx+dy*dy < 900) {
+                    if (!p.coins) p.coins = 0;
+                    if (!p.upgrades) p.upgrades = {speed:0,damage:0,health:0};
+                    if (pw.type==='coin') p.coins += 5;
+                    if (pw.type==='health') p.health = Math.min(100, p.health+30);
+                    if (pw.type==='shield') p.shield = true;
+                    if (pw.type==='speed') p.upgrades.speed += 1;
+                    powerups.splice(idx,1);
+                }
+            });
+        });
+
+        // Coin earning for kills
+        bullets.forEach(bullet => {
+            for (const pid in players) {
+                const p = players[pid];
+                if (bullet.owner !== pid) {
+                    const dx = bullet.x-p.x, dy = bullet.y-p.y;
+                    if (dx*dx+dy*dy < 900) {
+                        let dmg = bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
+                        if (p.shield) dmg = Math.max(0,dmg-30);
+                        p.health -= dmg;
+                        if (bullet.pierce) bullet.pierce--; else bullet.life=0;
+                        if (p.health<=0) {
+                            p.health=100; p.x=Math.random()*1600-800; p.y=Math.random()*1600-800;
+                            players[bullet.owner] && (players[bullet.owner].score+=100);
+                            players[bullet.owner] && (players[bullet.owner].coins = (players[bullet.owner].coins||0)+10);
+                        }
+                    }
+                }
+            }
+            bots.forEach(bot => {
+                if (bullet.owner !== bot.id) {
+                    const dx = bullet.x-bot.x, dy = bullet.y-bot.y;
+                    if (dx*dx+dy*dy < 900) {
+                        let dmg = bullet.type==='sniper'?40:bullet.type==='rammer'?20:30;
+                        bot.health -= dmg;
+                        if (bullet.pierce) bullet.pierce--; else bullet.life=0;
+                        if (bot.health<=0) {
+                            bot.health=100; bot.x=Math.random()*1600-800; bot.y=Math.random()*1600-800;
+                            players[bullet.owner] && (players[bullet.owner].score+=50);
+                            players[bullet.owner] && (players[bullet.owner].coins = (players[bullet.owner].coins||0)+5);
+                        }
+                    }
+                }
+            });
+        });
+
+        leaderboard=Object.values(players).sort((a,b)=>b.score-a.score).slice(0,10).map(p=>({name:p.name,score:p.score,coins:p.coins||0}));
+        io.emit('gameState',{players:Object.values(players),bullets,bots,leaderboard,powerups});
+    },1000/30);
 io.on('connection',socket=>{
     let player={id:socket.id,name:'Player'+(Math.floor(Math.random()*1000)),type:'tank',x:Math.random()*1600-800,y:Math.random()*1600-800,angle:0,health:100,score:0,shield:false,cooldown:0};
     players[socket.id]=player;

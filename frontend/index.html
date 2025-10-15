@@ -1,17 +1,315 @@
 <!DOCTYPE html>
 <html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
     <title>BattleBots.io</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        html, body { margin:0; padding:0; background:#111; overflow:hidden; }
-        #gameCanvas { display:block; margin:0 auto; background:#181828; box-shadow:0 0 40px #0ff8,0 0 80px #08f8; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #181828 60%, #0ff8 100%);
+            font-family: 'Orbitron', 'Roboto', Verdana, Arial, sans-serif;
+            overflow: hidden;
+        }
+        #mainMenu {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(24,24,40,0.96);
+            z-index: 10;
+            animation: fadeIn 1.2s cubic-bezier(.77,0,.175,1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .menu-title {
+            font-size: 4rem;
+            color: #0ff;
+            text-shadow: 0 0 32px #0ff8, 0 0 8px #fff;
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 32px;
+            letter-spacing: 0.12em;
+            animation: neonPulse 2s infinite alternate;
+        }
+        @keyframes neonPulse {
+            from { text-shadow: 0 0 32px #0ff8, 0 0 8px #fff; }
+            to { text-shadow: 0 0 64px #0ff, 0 0 24px #fff; }
+        }
+        .menu-form {
+            background: rgba(30,40,60,0.98);
+            border-radius: 18px;
+            box-shadow: 0 0 32px #0ff8, 0 0 0 4px #222 inset;
+            padding: 32px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            animation: floatUp 1.2s cubic-bezier(.77,0,.175,1);
+        }
+        @keyframes floatUp {
+            from { transform: translateY(80px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .menu-label {
+            font-size: 1.5rem;
+            color: #fff;
+            margin-bottom: 8px;
+            font-family: 'Roboto', sans-serif;
+        }
+        .menu-input {
+            font-size: 1.2rem;
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: 2px solid #0ff;
+            background: #222;
+            color: #0ff;
+            outline: none;
+            font-family: 'Roboto', sans-serif;
+            transition: border-color 0.2s;
+        }
+        .menu-input:focus {
+            border-color: #fff;
+        }
+        .tank-select {
+            display: flex;
+            gap: 32px;
+            margin: 16px 0 0 0;
+        }
+        .tank-option {
+            background: #181828;
+            border: 2px solid #0ff;
+            border-radius: 12px;
+            box-shadow: 0 0 16px #0ff8;
+            padding: 18px 32px;
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+        .tank-option.selected {
+            border-color: #fff;
+            box-shadow: 0 0 32px #0ff, 0 0 8px #fff;
+            transform: scale(1.08);
+        }
+        .tank-preview {
+            width: 80px; height: 80px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .start-btn {
+            font-size: 1.5rem;
+            padding: 16px 48px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(90deg, #0ff8 0%, #0ff 100%);
+            color: #181828;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            box-shadow: 0 0 24px #0ff8;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: background 0.2s, color 0.2s, transform 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+        .start-btn:after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #fff8 0%, #0ff0 80%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .start-btn:active {
+            transform: scale(0.97);
+        }
+        .start-btn:focus {
+            outline: 2px solid #fff;
+        }
+        .start-btn.animated {
+            animation: btnPulse 1.2s infinite alternate;
+        }
+        @keyframes btnPulse {
+            from { box-shadow: 0 0 24px #0ff8; }
+            to { box-shadow: 0 0 48px #0ff, 0 0 16px #fff; }
+        }
+        .fullscreen-btn {
+            position: absolute;
+            top: 24px; right: 24px;
+            background: #0ff;
+            color: #181828;
+            border: none;
+            border-radius: 50%;
+            width: 56px; height: 56px;
+            font-size: 2rem;
+            box-shadow: 0 0 16px #0ff8;
+            cursor: pointer;
+            z-index: 20;
+            transition: background 0.2s, color 0.2s, transform 0.15s;
+        }
+        .fullscreen-btn:hover {
+            background: #fff;
+            color: #0ff;
+            transform: scale(1.08);
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: #181828;
+            box-shadow: 0 0 60px #0ff8, 0 0 0 8px #222 inset;
+            border-radius: 24px;
+            border: 2px solid #0ff;
+            max-width: 98vw;
+            max-height: 80vh;
+            z-index: 1;
+        }
+        #hud {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 5;
+        }
+        #leaderboard {
+            position: absolute;
+            top: 40px; right: 40px;
+            background: rgba(20,30,40,0.85);
+            border-radius: 16px;
+            box-shadow: 0 0 24px #0ff8;
+            padding: 24px 32px;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            z-index: 6;
+            min-width: 220px;
+        }
+        #upgradesMenu {
+            position: absolute;
+            bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(24,24,40,0.98);
+            border-radius: 18px;
+            box-shadow: 0 0 32px #0ff8, 0 0 0 4px #222 inset;
+            padding: 32px 48px;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            z-index: 7;
+            min-width: 440px;
+        }
+        @media (max-width: 900px) {
+            #gameCanvas { width: 98vw !important; height: 60vh !important; }
+            #mainMenu, #hud, #leaderboard, #upgradesMenu { font-size: 1rem; }
+        }
+        /* Add more animations, transitions, and effects as needed for a stunning UI */
     </style>
 </head>
 <body>
+    <!-- Main menu removed for direct game experience -->
     <canvas id="gameCanvas" width="1280" height="720"></canvas>
+    <div id="hud"></div>
+    <div id="leaderboard"></div>
+    <div id="upgradesMenu"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="scripts/app.js"></script>
+    <script>
+        // --- Animated Tank Previews ---
+        function drawTankPreview(canvas, type) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.shadowColor = '#0ff';
+            ctx.shadowBlur = 16;
+            if(type==='rammer') {
+                ctx.fillStyle='#222'; ctx.beginPath(); ctx.ellipse(0,0,24,36,0,0,2*Math.PI); ctx.fill();
+                ctx.strokeStyle='#0ff'; ctx.lineWidth=5; ctx.stroke();
+                ctx.fillStyle='#0ff'; ctx.fillRect(-10,-44,20,24);
+            } else if(type==='tank') {
+                ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,0,32,0,2*Math.PI); ctx.fill();
+                ctx.strokeStyle='#0ff'; ctx.lineWidth=5; ctx.stroke();
+                ctx.fillStyle='#0ff'; ctx.fillRect(-12,-44,24,24);
+            } else if(type==='sniper') {
+                ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,0,28,0,2*Math.PI); ctx.fill();
+                ctx.strokeStyle='#0ff'; ctx.lineWidth=5; ctx.stroke();
+                ctx.fillStyle='#0ff'; ctx.fillRect(-8,-44,16,32);
+            }
+            ctx.restore();
+        }
+        function setupTankPreviews() {
+            ['rammer','tank','sniper'].forEach(type => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 80; canvas.height = 80;
+                drawTankPreview(canvas, type);
+                document.getElementById(type+'Preview').appendChild(canvas);
+            });
+        }
+        setupTankPreviews();
+        // --- Menu Interactivity ---
+        let selectedTank = 'tank';
+        document.querySelectorAll('.tank-option').forEach(opt => {
+            opt.addEventListener('click',()=>{
+                document.querySelectorAll('.tank-option').forEach(o=>o.classList.remove('selected'));
+                opt.classList.add('selected');
+                selectedTank = opt.getAttribute('data-type');
+            });
+        });
+        document.querySelector('.tank-option[data-type="tank"]').classList.add('selected');
+        // --- Start Game ---
+        document.getElementById('menuForm').addEventListener('submit',function(e){
+            e.preventDefault();
+            const name = document.getElementById('playerName').value.trim() || 'Player';
+            window.startGame && window.startGame(name, selectedTank);
+            document.getElementById('mainMenu').style.display = 'none';
+        });
+        // --- Animate Menu ---
+        setTimeout(()=>{
+            document.getElementById('mainMenu').style.opacity = 1;
+        },200);
+        // --- HUD, Leaderboard, Upgrades placeholders ---
+        document.getElementById('hud').innerHTML = '<div style="position:absolute;top:32px;left:32px;font-size:2rem;color:#fff;text-shadow:0 0 8px #0ff;">HUD</div>';
+        document.getElementById('leaderboard').innerHTML = '<div style="font-size:1.5rem;color:#0ff;text-shadow:0 0 8px #fff;">Leaderboard</div>';
+        document.getElementById('upgradesMenu').innerHTML = '<div style="font-size:1.5rem;color:#fff;text-shadow:0 0 8px #0ff;">Upgrades</div>';
+        // --- Animated Button Prompt ---
+        function animatePrompt() {
+            const prompt = document.querySelector('.prompt-anim');
+            let visible = true;
+            setInterval(()=>{
+                visible = !visible;
+                prompt.style.opacity = visible ? '1' : '0.3';
+            }, 700);
+        }
+        animatePrompt();
+        // --- Fullscreen Toggle ---
+        document.getElementById('fullscreenBtn').addEventListener('click',()=>{
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        // --- Keyboard prompt for Start ---
+        document.addEventListener('keydown',function(e){
+            if(document.getElementById('mainMenu').style.display!=='none' && (e.key==='Enter'||e.key===' ')) {
+                document.getElementById('startBtn').click();
+            }
+        });
+        // --- Add more animated effects, transitions, and interactive elements as needed ---
+    </script>
 </body>
 </html>
+<!-- Removed duplicate/extra HTML -->
