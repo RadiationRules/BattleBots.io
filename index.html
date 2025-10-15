@@ -26,13 +26,16 @@ const ctx=canvas.getContext('2d');
 canvas.width=window.innerWidth;
 canvas.height=window.innerHeight;
 
+window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+
 let players={}, bots={}, bullets=[], particles=[];
 let myId=null, gameStarted=false, selectedTank=null;
 let keys={}, mouse={x:0,y:0,clicked:false};
+
 window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-canvas.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
-canvas.addEventListener('mousedown',()=>{mouse.clicked=true; shoot();});
+canvas.addEventListener('mousemove',e=>{ const rect = canvas.getBoundingClientRect(); mouse.x=e.clientX-rect.left; mouse.y=e.clientY-rect.top; });
+canvas.addEventListener('mousedown',()=>{ mouse.clicked=true; shoot(); });
 
 const tankTypes={
   Tank:{speed:3,health:120,damage:12,color:'#0ff'},
@@ -40,31 +43,26 @@ const tankTypes={
   Sniper:{speed:2.5,health:90,damage:25,color:'#ff0'}
 };
 
-// Shoot
+// Shooting
 function shoot(){ if(!myId || !gameStarted) return; const p=players[myId]; const angle=Math.atan2(mouse.y-p.y,mouse.x-p.x); socket.emit('shoot',{angle}); }
 
 // Particles
 function createParticle(x,y,color){ particles.push({x,y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:20,color}); }
 function drawParticles(){ for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; ctx.fillStyle=p.color; ctx.globalAlpha=p.life/20; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; p.x+=p.vx; p.y+=p.vy; p.life--; if(p.life<=0) particles.splice(i,1); } }
 
-// Socket events
+// Socket
 socket.on('currentState',data=>{players=data.players; bots=data.bots; bullets=data.bullets; myId=socket.id;});
-socket.on('playerMove',data=>{if(players[data.id]){players[data.id].x=data.x;players[data.id].y=data.y;}});
+socket.on('playerMove',data=>{if(players[data.id]){players[data.id].x=data.x; players[data.id].y=data.y;}});
 socket.on('playerLeft',id=>{delete players[id];});
-socket.on('newPlayer',data=>{players[data.id]=data.player;});
-socket.on('botUpdate',data=>{bots=data;});
 
-// Tank rendering
+// Tank drawing
 function drawTank(x,y,color,angle,type){
   const size = type==='Rammer'? 20:25;
   ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
   const grd=ctx.createLinearGradient(-size/2,-size/2,size/2,size/2); grd.addColorStop(0,color); grd.addColorStop(1,'#fff');
   ctx.fillStyle=grd; ctx.shadowColor=color; ctx.shadowBlur=20; ctx.fillRect(-size/2,-size/2,size,size);
-  // Tracks
   ctx.fillStyle='#333'; ctx.fillRect(-size/2-5,-size/2,5,size); ctx.fillRect(size/2,-size/2,5,size);
-  // Turret
   ctx.fillStyle='#fff'; ctx.fillRect(-5,-size/2-15,10,15);
-  // Barrel tip
   ctx.shadowColor='#fff'; ctx.shadowBlur=10; ctx.fillRect(-2,-size/2-25,4,10);
   ctx.restore();
 }
@@ -99,15 +97,13 @@ function drawMenu(){
 function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!gameStarted){ drawMenu(); requestAnimationFrame(gameLoop); return; }
+
   if(myId){ const p=players[myId]; let dx=0,dy=0; if(keys['w']) dy-=1; if(keys['s']) dy+=1; if(keys['a']) dx-=1; if(keys['d']) dx+=1; socket.emit('move',{dx,dy}); }
 
-  // Draw bullets
   bullets.forEach(b=>{ ctx.fillStyle='#ff0'; ctx.shadowColor='#ff0'; ctx.shadowBlur=10; ctx.beginPath(); ctx.arc(b.x,b.y,5,0,Math.PI*2); ctx.fill(); createParticle(b.x,b.y,'#ff0'); });
 
-  // Draw bots
   for(const id in bots){ const b=bots[id]; drawTank(b.x,b.y,b.color,0,'Tank'); ctx.fillStyle='#f00'; ctx.fillRect(b.x-20,b.y-30,40*b.health/100,5); }
 
-  // Draw players
   for(const id in players){
     const p=players[id]; const angle=myId===id?Math.atan2(mouse.y-p.y,mouse.x-p.x):0;
     drawTank(p.x,p.y,p.color,angle,p.type);

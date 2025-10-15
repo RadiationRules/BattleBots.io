@@ -26,7 +26,7 @@ function spawnBots() {
 spawnBots();
 
 setInterval(()=>{
-  // Move bullets and check collisions
+  // Move bullets & check collisions
   bullets.forEach((b,i)=>{
     b.x += b.vx;
     b.y += b.vy;
@@ -40,7 +40,7 @@ setInterval(()=>{
     }
   });
 
-  // Bot AI: chase nearest player
+  // Bot AI
   for(const id in bots){
     const b = bots[id];
     let nearest=null, dist=Infinity;
