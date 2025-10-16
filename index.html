@@ -1,122 +1,585 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>BattleBots.io - Neon Arena</title>
-<style>
-body,html{margin:0;padding:0;overflow:hidden;background:#000;}
-canvas{display:block;}
-#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;font-family:Arial;color:#0ff;}
-#leaderboard{position:absolute;top:10px;right:10px;width:200px;background:rgba(0,0,0,0.6);padding:10px;border-radius:10px;box-shadow:0 0 15px #0ff;}
-#ammo,#health{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,0.6);padding:5px 10px;border-radius:5px;margin-bottom:5px;box-shadow:0 0 10px #0ff;}
-</style>
+  <meta charset="utf-8" />
+  <title>BattleBots.io — Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#0f1724; --accent:#38bdf8; --muted:#7b8794;
+      --card:#0b1220; --good:#10b981; --danger:#ef4444;
+    }
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, sans-serif;background:linear-gradient(180deg,#071025 0%, #071427 100%);color:#e6eef8}
+    #gameWrap{display:flex;height:100vh;gap:12px;padding:16px;box-sizing:border-box}
+    #left{flex:1;display:flex;flex-direction:column;gap:12px}
+    #canvasWrap{flex:1; background:linear-gradient(180deg,#081026,#061022);border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:center;position:relative;}
+    canvas{background:#071427;border-radius:8px;display:block;max-width:100%;height:calc(100% - 20px)}
+    .panel{background:linear-gradient(180deg,#081426,#061022);border-radius:10px;padding:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    #hud{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:10}
+    .stat{padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.03);display:flex;gap:8px;align-items:center;font-size:14px}
+    #right{width:360px;display:flex;flex-direction:column;gap:12px}
+    button{background:var(--accent);border:0;padding:8px 12px;border-radius:8px;color:#04202b;font-weight:700;cursor:pointer}
+    .muted{color:var(--muted);font-size:13px}
+    .menu{display:flex;flex-direction:column;gap:8px}
+    .menu .title{font-size:20px;font-weight:700}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:12px;border-radius:10px}
+    .upgrade{display:flex;justify-content:space-between;align-items:center;padding:8px 6px;border-radius:8px;background:rgba(255,255,255,0.01)}
+    .bar{height:10px;background:rgba(255,255,255,0.06);border-radius:8px;overflow:hidden}
+    .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#7c3aed)}
+    #menuOverlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,6,23,0.4), rgba(2,6,23,0.6));z-index:50;display:flex;align-items:center;justify-content:center}
+    .menuBox{width:780px;max-width:95%;padding:18px;border-radius:14px;background:linear-gradient(180deg,#071429,#041123);box-shadow:0 8px 40px rgba(2,6,23,0.8)}
+    .row{display:flex;gap:8px}
+    .selectBot{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);cursor:pointer}
+    .leader{display:flex;flex-direction:column;gap:6px}
+    .leaderRow{display:flex;justify-content:space-between;font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+    input[type=range]{width:100%}
+    /* responsive */
+    @media(max-width:900px){#right{width:100%;order:2}#left{order:1}#gameWrap{flex-direction:column}}
+  </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
-<div id="ui">
-  <div id="leaderboard"></div>
-  <div id="ammo"></div>
-  <div id="health"></div>
-</div>
-<script src="/socket.io/socket.io.js"></script>
-<script>
-const socket=io();
-const canvas=document.getElementById('gameCanvas');
-const ctx=canvas.getContext('2d');
-canvas.width=window.innerWidth;
-canvas.height=window.innerHeight;
+  <div id="gameWrap">
+    <div id="left">
+      <div id="canvasWrap" class="panel">
+        <div id="hud">
+          <div class="stat" id="statCoins">Coins: <strong style="margin-left:8px" id="coins">0</strong></div>
+          <div class="stat">Level: <strong style="margin-left:8px" id="level">1</strong></div>
+          <div class="stat">XP: <strong id="xp" style="margin-left:8px">0/100</strong></div>
+        </div>
 
-window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+        <canvas id="gameCanvas" width="1200" height="700"></canvas>
 
-let players={}, bots={}, bullets=[], particles=[];
-let myId=null, gameStarted=false, selectedTank=null;
-let keys={}, mouse={x:0,y:0,clicked:false};
+        <div id="menuOverlay">
+          <div class="menuBox">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div>
+                <div style="font-size:24px;font-weight:800">BattleBots.io — Demo</div>
+                <div class="small">Fast, simple, addictive. Select a bot, upgrade, then fight.</div>
+              </div>
+              <div style="text-align:right">
+                <div class="small">Ping: <span id="ping">—</span> ms</div>
+                <div class="small">Connected players: <span id="playersCount">0</span></div>
+              </div>
+            </div>
 
-window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-canvas.addEventListener('mousemove',e=>{ const rect = canvas.getBoundingClientRect(); mouse.x=e.clientX-rect.left; mouse.y=e.clientY-rect.top; });
-canvas.addEventListener('mousedown',()=>{ mouse.clicked=true; shoot(); });
+            <div class="row" style="gap:12px;margin-bottom:12px">
+              <div style="flex:1" class="card">
+                <div style="font-weight:700;margin-bottom:8px">Choose Bot</div>
+                <div class="row" id="botChoices">
+                  <div class="selectBot" data-id="light">Light — Fast</div>
+                  <div class="selectBot" data-id="heavy">Heavy — Tank</div>
+                  <div class="selectBot" data-id="shred">Shred — DPS</div>
+                </div>
+              </div>
+              <div style="width:240px" class="card">
+                <div style="font-weight:700;margin-bottom:8px">Quick Stats</div>
+                <div class="small" id="previewStats">Select a bot to preview stats</div>
+              </div>
+            </div>
 
-const tankTypes={
-  Tank:{speed:3,health:120,damage:12,color:'#0ff'},
-  Rammer:{speed:5,health:80,damage:8,color:'#f0f'},
-  Sniper:{speed:2.5,health:90,damage:25,color:'#ff0'}
-};
+            <div class="row" style="gap:12px">
+              <div class="card" style="flex:1">
+                <div style="font-weight:700;margin-bottom:8px">Upgrades</div>
+                <div id="upgradesList" style="display:flex;flex-direction:column;gap:8px">
+                  <!-- upgrade rows filled by JS -->
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;align-items:center">
+                  <div class="small">Coins: <strong id="overlayCoins">0</strong></div>
+                  <button id="startBtn">Start Battle</button>
+                </div>
+              </div>
 
-// Shooting
-function shoot(){ if(!myId || !gameStarted) return; const p=players[myId]; const angle=Math.atan2(mouse.y-p.y,mouse.x-p.x); socket.emit('shoot',{angle}); }
+              <div class="card" style="width:240px">
+                <div style="font-weight:700;margin-bottom:8px">Leaderboard</div>
+                <div class="leader" id="leaderboard">
+                  <div class="leaderRow small"><span>—</span><span>—</span></div>
+                </div>
+              </div>
+            </div>
 
-// Particles
-function createParticle(x,y,color){ particles.push({x,y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:20,color}); }
-function drawParticles(){ for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; ctx.fillStyle=p.color; ctx.globalAlpha=p.life/20; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; p.x+=p.vx; p.y+=p.vy; p.life--; if(p.life<=0) particles.splice(i,1); } }
+            <div style="display:flex;justify-content:flex-end;margin-top:12px">
+              <div class="small">Tip: WASD / Arrow keys to move — Mouse to aim — Click to fire</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-// Socket
-socket.on('currentState',data=>{players=data.players; bots=data.bots; bullets=data.bullets; myId=socket.id;});
-socket.on('playerMove',data=>{if(players[data.id]){players[data.id].x=data.x; players[data.id].y=data.y;}});
-socket.on('playerLeft',id=>{delete players[id];});
+    <div id="right">
+      <div class="panel card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:800">Player Stats</div>
+            <div class="small">Real-time stats for your current session</div>
+          </div>
+          <div style="text-align:right">
+            <div class="small">Kills: <strong id="kills">0</strong></div>
+            <div class="small">Deaths: <strong id="deaths">0</strong></div>
+            <div class="small">Score: <strong id="score">0</strong></div>
+          </div>
+        </div>
+        <hr style="border:0;height:1px;background:rgba(255,255,255,0.03);margin:10px 0">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="respawnBtn">Respawn</button>
+          <button id="toggleBotsBtn">Toggle Bots</button>
+        </div>
+      </div>
 
-// Tank drawing
-function drawTank(x,y,color,angle,type){
-  const size = type==='Rammer'? 20:25;
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  const grd=ctx.createLinearGradient(-size/2,-size/2,size/2,size/2); grd.addColorStop(0,color); grd.addColorStop(1,'#fff');
-  ctx.fillStyle=grd; ctx.shadowColor=color; ctx.shadowBlur=20; ctx.fillRect(-size/2,-size/2,size,size);
-  ctx.fillStyle='#333'; ctx.fillRect(-size/2-5,-size/2,5,size); ctx.fillRect(size/2,-size/2,5,size);
-  ctx.fillStyle='#fff'; ctx.fillRect(-5,-size/2-15,10,15);
-  ctx.shadowColor='#fff'; ctx.shadowBlur=10; ctx.fillRect(-2,-size/2-25,4,10);
-  ctx.restore();
-}
+      <div class="panel card">
+        <div style="font-weight:700">Current Loadout</div>
+        <div class="small" id="loadout">None</div>
+      </div>
 
-// UI
-function updateUI(){ 
-  const lb=document.getElementById('leaderboard');
-  const sorted=Object.values(players).sort((a,b)=>b.score-a.score);
-  lb.innerHTML='<b>Leaderboard</b><br>'+sorted.map(p=>p.id.substr(0,5)+': '+p.score).join('<br>');
-  if(myId){ const p=players[myId]; document.getElementById('ammo').innerText='Ammo: '+p.ammo; document.getElementById('health').innerText='Health: '+Math.max(0,p.health); }
-}
+      <div class="panel card">
+        <div style="font-weight:700">Shop</div>
+        <div class="small">Buy coins for demo (dev command)</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="devAddCoins">+100 Coins</button>
+          <button id="devAddXP">+50 XP</button>
+        </div>
+      </div>
 
-// Menu
-function drawMenu(){
-  ctx.fillStyle='rgba(0,0,0,0.95)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#0ff'; ctx.font='60px Arial'; ctx.textAlign='center'; ctx.fillText('BattleBots.io',canvas.width/2,100);
-  let yStart=200; let i=0;
-  for(const tank in tankTypes){
-    const tx=canvas.width/2; const ty=yStart+i*80;
-    ctx.fillStyle=(selectedTank===tank)?'#fff':'#0ff'; ctx.fillText(tank,tx,ty);
-    if(mouse.clicked && mouse.x>tx-100 && mouse.x<tx+100 && mouse.y>ty-30 && mouse.y<ty+10){ selectedTank=tank; mouse.clicked=false; }
-    i++;
+      <div class="panel card">
+        <div style="font-weight:700">Controls</div>
+        <div class="small">WASD → Move<br>Mouse → Aim<br>Click → Fire</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Socket.io from server (or will fallback) -->
+  <script>
+  // === Basic helpers & game constants ===
+  const SERVER = location.hostname === 'localhost' ? `${location.protocol}//${location.hostname}:3000` : location.protocol + '//' + location.hostname + (location.port ? ':'+location.port : '');
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let cw = canvas.width, ch = canvas.height;
+  const toRad = a => a * Math.PI / 180;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  // Player state that will be sent to server
+  let clientId = null;
+  let socket = null;
+  let connected = false;
+  // Game objects
+  const players = {}; // id -> {x,y,angle,hp,name,...}
+  const bullets = [];
+  const bots = []; // simple AI bots (client-side for fallback)
+  let showMenu = true;
+  let lastTick = performance.now();
+  let keys = {};
+  let mouse = {x:cw/2,y:ch/2,down:false};
+  let selectedBot = 'light';
+  let upgrades = {
+    damage: {lvl:0, cost:50, base:1},
+    speed: {lvl:0, cost:50, base:2},
+    hp: {lvl:0, cost:50, base:50},
+    coins: {lvl:0, cost:150, base:1}
+  };
+  let local = {
+    x: cw/2, y: ch/2, angle:0, hp:100, maxHp:100, speed:2.2, damage:8, coins:0, name: 'You', kills:0, deaths:0, score:0, level:1, xp:0, xpToLevel:100
+  };
+  let allowBots = true;
+
+  // Leaderboard refresh
+  function safeInt(v){return Math.floor(Number(v)||0)}
+  function updateLeaderboard(list){
+    const container = document.getElementById('leaderboard');
+    container.innerHTML = '';
+    list.slice(0,6).forEach(p=>{
+      const row = document.createElement('div'); row.className='leaderRow';
+      row.innerHTML = `<div>${p.name||p.id}</div><div>${safeInt(p.score)} pts</div>`;
+      container.appendChild(row);
+    });
   }
-  if(selectedTank){ const bx=canvas.width/2, by=yStart+i*80;
-    ctx.fillStyle='#0ff'; ctx.fillRect(bx-120,by-35,240,70);
-    ctx.fillStyle='#000'; ctx.font='30px Arial'; ctx.fillText('Start Game',bx,by+10);
-    if(mouse.clicked && mouse.x>bx-120 && mouse.x<bx+120 && mouse.y>by-35 && mouse.y<by+35){ socket.emit('joinGame',{tankType:selectedTank}); gameStarted=true; mouse.clicked=false; }
+
+  // === UI wiring ===
+  document.getElementById('startBtn').addEventListener('click', ()=> {
+    showMenu=false; document.getElementById('menuOverlay').style.display='none';
+    spawnLocal();
+    if(socket && connected) socket.emit('playerReady', {bot:selectedBot, upgrades});
+  });
+
+  document.querySelectorAll('.selectBot').forEach(el=>{
+    el.addEventListener('click', ()=> {
+      document.querySelectorAll('.selectBot').forEach(x=>x.style.border='none');
+      el.style.border='2px solid rgba(255,255,255,0.06)';
+      selectedBot = el.dataset.id;
+      previewStats(selectedBot);
+      document.getElementById('loadout').innerText = selectedBot;
+    });
+  });
+
+  function previewStats(id){
+    const txt = document.getElementById('previewStats');
+    if(id==='light') txt.innerHTML = 'Speed: High<br>HP: Low<br>Damage: Low';
+    if(id==='heavy') txt.innerHTML = 'Speed: Low<br>HP: High<br>Damage: Medium';
+    if(id==='shred') txt.innerHTML = 'Speed: Medium<br>HP: Medium<br>Damage: High';
   }
-}
 
-// Main loop
-function gameLoop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(!gameStarted){ drawMenu(); requestAnimationFrame(gameLoop); return; }
+  // create upgrade rows
+  function refreshUpgradesUI(){
+    const el = document.getElementById('upgradesList'); el.innerHTML='';
+    for(const key in upgrades){
+      const u = upgrades[key];
+      const row = document.createElement('div'); row.className='upgrade';
+      row.innerHTML = `<div style="flex:1"><div style="font-weight:700;text-transform:capitalize">${key}</div><div class="small">lvl ${u.lvl}</div></div><div style="text-align:right"><div class="small">cost ${u.cost}</div><button data-key="${key}">Buy</button></div>`;
+      el.appendChild(row);
+      row.querySelector('button').addEventListener('click', ()=> {
+        if(local.coins >= u.cost){
+          local.coins -= u.cost; u.lvl++; u.cost = Math.floor(u.cost * 1.9);
+          applyUpgrades();
+          updateHUD();
+          document.getElementById('overlayCoins').innerText = local.coins;
+          if(socket && connected) socket.emit('buyUpgrade', {key});
+        } else {
+          // not enough coins: small shake / flash
+          row.style.transform='translateX(4px)';
+          setTimeout(()=>row.style.transform='',120);
+        }
+      });
+    }
+  }
+  refreshUpgradesUI();
 
-  if(myId){ const p=players[myId]; let dx=0,dy=0; if(keys['w']) dy-=1; if(keys['s']) dy+=1; if(keys['a']) dx-=1; if(keys['d']) dx+=1; socket.emit('move',{dx,dy}); }
+  // dev buttons
+  document.getElementById('devAddCoins').addEventListener('click', ()=>{ local.coins += 100; updateHUD(); document.getElementById('overlayCoins').innerText = local.coins });
+  document.getElementById('devAddXP').addEventListener('click', ()=>{ gainXP(50) });
 
-  bullets.forEach(b=>{ ctx.fillStyle='#ff0'; ctx.shadowColor='#ff0'; ctx.shadowBlur=10; ctx.beginPath(); ctx.arc(b.x,b.y,5,0,Math.PI*2); ctx.fill(); createParticle(b.x,b.y,'#ff0'); });
+  document.getElementById('respawnBtn').addEventListener('click', ()=>{ if(local.hp<=0) spawnLocal(true) });
+  document.getElementById('toggleBotsBtn').addEventListener('click', ()=>{ allowBots = !allowBots; document.getElementById('toggleBotsBtn').innerText = allowBots ? 'Toggle Bots (On)' : 'Toggle Bots (Off)' });
 
-  for(const id in bots){ const b=bots[id]; drawTank(b.x,b.y,b.color,0,'Tank'); ctx.fillStyle='#f00'; ctx.fillRect(b.x-20,b.y-30,40*b.health/100,5); }
-
-  for(const id in players){
-    const p=players[id]; const angle=myId===id?Math.atan2(mouse.y-p.y,mouse.x-p.x):0;
-    drawTank(p.x,p.y,p.color,angle,p.type);
-    ctx.fillStyle='#0ff'; ctx.font='16px Arial'; ctx.fillText(id.substr(0,5),p.x-15,p.y-30);
-    ctx.fillStyle='#fff'; ctx.fillRect(p.x-20,p.y-35,40,5); ctx.fillStyle='#0f0'; ctx.fillRect(p.x-20,p.y-35,40*p.health/tankTypes[p.type].health,5);
+  function updateHUD(){
+    document.getElementById('coins').innerText = local.coins;
+    document.getElementById('overlayCoins').innerText = local.coins;
+    document.getElementById('kills').innerText = local.kills;
+    document.getElementById('deaths').innerText = local.deaths;
+    document.getElementById('score').innerText = local.score;
+    document.getElementById('level').innerText = local.level;
+    document.getElementById('xp').innerText = `${local.xp}/${local.xpToLevel}`;
   }
 
-  drawParticles();
-  updateUI();
-  requestAnimationFrame(gameLoop);
-}
+  // === Input ===
+  window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true );
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false );
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
+    mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
+  });
+  canvas.addEventListener('mousedown', e => { mouse.down = true; shoot(); });
+  canvas.addEventListener('mouseup', e => mouse.down = false );
 
-gameLoop();
-</script>
+  // === Networking (Socket.IO) ===
+  (function initSocket(){
+    try {
+      // try to connect to server
+      socket = io(SERVER);
+      socket.on('connect', ()=>{ connected=true; clientId=socket.id; document.getElementById('playersCount').innerText='?'; });
+      socket.on('disconnect', ()=>{ connected=false; });
+      socket.on('state', state => {
+        // state: {players, bullets, leaderboard}
+        // merge players
+        for(const id in state.players){
+          players[id] = state.players[id];
+        }
+        // remove missing players
+        for(const id in players) if(!state.players[id] && id !== clientId) delete players[id];
+        if(state.leaderboard) updateLeaderboard(state.leaderboard);
+        document.getElementById('playersCount').innerText = Object.keys(state.players||{}).length;
+      });
+      socket.on('ping', ms => { document.getElementById('ping').innerText = Math.round(ms) });
+      socket.on('event', ev => {
+        if(ev.type === 'killed' && ev.victim === clientId) {
+          // we died
+          local.deaths++; local.hp = 0; updateHUD();
+        }
+        if(ev.type === 'killed' && ev.killer === clientId){
+          local.kills++; local.score += ev.score || 10; local.coins += ev.coins || 5; gainXP((ev.xp||20));
+          updateHUD();
+        }
+      });
+      // ping measurement
+      setInterval(()=>{ if(socket && connected) socket.emit('pingCheck', Date.now()) }, 2000);
+      // send player input each 60ms
+      setInterval(()=> {
+        if(!connected) return;
+        const payload = {x: local.x, y: local.y, angle: local.angle, hp: local.hp, name: local.name};
+        socket.emit('input', payload);
+      }, 60);
+    } catch(err){
+      console.warn('Socket init failed', err);
+    }
+  })();
+
+  // === Game mechanics ===
+  function applyUpgrades(){
+    local.damage = 8 + upgrades.damage.lvl * 2;
+    local.speed = 2.2 + upgrades.speed.lvl * 0.35;
+    local.maxHp = 100 + upgrades.hp.lvl * 20;
+    local.coinsMultiplier = 1 + upgrades.coins.lvl * 0.15;
+    if(local.hp > local.maxHp) local.hp = local.maxHp;
+  }
+
+  function spawnLocal(force=false){
+    if(!force && local.hp>0) return;
+    local.hp = local.maxHp;
+    local.x = Math.random() * (cw-200) + 100;
+    local.y = Math.random() * (ch-200) + 100;
+    local.score = local.score || 0;
+    if(socket && connected) socket.emit('spawn', {x:local.x,y:local.y, bot:selectedBot});
+    updateHUD();
+  }
+
+  function shoot(){
+    if(local.hp<=0) return;
+    // rate limit simplified: create bullet client-side and notify server
+    const angle = Math.atan2(mouse.y - local.y, mouse.x - local.x);
+    const b = {id: 'b'+Date.now()+Math.random(), x: local.x + Math.cos(angle)*24, y:local.y + Math.sin(angle)*24, vx:Math.cos(angle)*8, vy:Math.sin(angle)*8, owner:clientId, dmg: local.damage};
+    bullets.push(b);
+    if(socket && connected) socket.emit('shoot', {x:b.x,y:b.y,vx:b.vx,vy:b.vy,dmg:b.dmg});
+  }
+
+  function gainXP(amount){
+    local.xp += amount;
+    while(local.xp >= local.xpToLevel){
+      local.xp -= local.xpToLevel;
+      local.level++;
+      local.xpToLevel = Math.floor(local.xpToLevel * 1.35);
+      local.coins += Math.floor(20 * local.level);
+    }
+    updateHUD();
+  }
+
+  function spawnBot(overrides){
+    const b = {
+      id: 'bot'+Date.now()+Math.random(),
+      x: Math.random()*(cw-200)+100,
+      y: Math.random()*(ch-200)+100,
+      vx:0, vy:0,
+      hp: overrides?.hp || 40,
+      maxHp: overrides?.hp || 40,
+      speed: overrides?.speed || (1 + Math.random()*1.2),
+      name: overrides?.name || 'Bot',
+      lastShot:0
+    };
+    bots.push(b);
+  }
+
+  // spawn some fallback bots
+  for(let i=0;i<6;i++) spawnBot();
+
+  function updatePhysics(dt){
+    // local player input -> movement
+    if(local.hp > 0){
+      let mx = 0, my = 0;
+      if(keys['w']||keys['arrowup']) my -= 1;
+      if(keys['s']||keys['arrowdown']) my += 1;
+      if(keys['a']||keys['arrowleft']) mx -= 1;
+      if(keys['d']||keys['arrowright']) mx += 1;
+      const mag = Math.hypot(mx,my) || 1;
+      local.x += (mx/mag) * local.speed * dt;
+      local.y += (my/mag) * local.speed * dt;
+      local.x = clamp(local.x, 20, cw-20);
+      local.y = clamp(local.y, 20, ch-20);
+      local.angle = Math.atan2(mouse.y - local.y, mouse.x - local.x);
+      if(mouse.down) {
+        // continuous auto-shoot with cooldown
+        if(!local._lastShot || performance.now() - local._lastShot > 180){
+          shoot();
+          local._lastShot = performance.now();
+        }
+      }
+    }
+    // bullets
+    for(let i=bullets.length-1;i>=0;i--){
+      const b = bullets[i];
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      // remove off-screen
+      if(b.x<0||b.x>cw||b.y<0||b.y>ch) bullets.splice(i,1);
+    }
+    // simple bot AI
+    if(allowBots){
+      bots.forEach(bot=>{
+        // move towards nearest target (prefer local player)
+        const tx = local.x, ty = local.y;
+        const dx = tx - bot.x, dy = ty - bot.y;
+        const dist = Math.hypot(dx,dy);
+        const nx = dx / (dist||1), ny = dy/(dist||1);
+        bot.x += nx * bot.speed * dt * 0.9;
+        bot.y += ny * bot.speed * dt * 0.9;
+        // shoot occasionally
+        if(performance.now() - (bot.lastShot||0) > 800 + Math.random()*800 && dist < 380 && local.hp>0){
+          bot.lastShot = performance.now();
+          const angle = Math.atan2(dy,dx);
+          bullets.push({id:'b'+Date.now()+Math.random(), x: bot.x + Math.cos(angle)*20, y: bot.y + Math.sin(angle)*20, vx:Math.cos(angle)*6, vy:Math.sin(angle)*6, owner: bot.id, dmg: 6 + Math.random()*6});
+        }
+      });
+    }
+    // collisions: bullets -> players/bots
+    for(let i=bullets.length-1;i>=0;i--){
+      const b = bullets[i];
+      // hit local
+      if(b.owner !== clientId && local.hp>0 && Math.hypot(local.x-b.x, local.y-b.y) < 18){
+        local.hp -= b.dmg;
+        bullets.splice(i,1);
+        if(local.hp <= 0){
+          local.hp = 0;
+          local.deaths++;
+          // notify server
+          if(socket && connected) socket.emit('died', {victim: clientId, killer: b.owner});
+        }
+        continue;
+      }
+      // hit bots
+      for(let j=bots.length-1;j>=0;j--){
+        const bot = bots[j];
+        if(Math.hypot(bot.x-b.x, bot.y-b.y) < 18){
+          bot.hp -= b.dmg;
+          bullets.splice(i,1);
+          if(bot.hp <= 0){
+            // killed
+            const killer = b.owner === clientId ? clientId : null;
+            if(killer === clientId){
+              local.kills++; local.score += 10; local.coins += Math.floor(5 * (local.coinsMultiplier||1)); gainXP(18);
+            }
+            // respawn small chance
+            bots.splice(j,1);
+            if(Math.random() < 0.6) spawnBot();
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,cw,ch);
+    // arena background grid
+    ctx.fillStyle = '#061223';
+    ctx.fillRect(0,0,cw,ch);
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    for(let x=0;x<cw;x+=60){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,ch); ctx.stroke(); }
+    for(let y=0;y<ch;y+=60){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cw,y); ctx.stroke(); }
+
+    // bots
+    bots.forEach(bot=>{
+      drawBot(bot, '#a3a3a3');
+    });
+    // other players (from server)
+    for(const id in players){
+      if(id===clientId) continue;
+      const p = players[id];
+      drawBot(p, '#ffb86b', p.name || 'Anon');
+    }
+    // local player
+    drawBot(local, '#7ee7c6', 'You', true);
+
+    // bullets
+    bullets.forEach(b=>{
+      ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill();
+    });
+
+    // UI overlays
+    // health bar center bottom
+    const barW = 260;
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect((cw-barW)/2, ch-48, barW, 14);
+    const hpFrac = clamp(local.hp / local.maxHp, 0, 1);
+    ctx.fillStyle = hpFrac > 0.4 ? '#10b981' : '#ef4444';
+    ctx.fillRect((cw-barW)/2, ch-48, barW * hpFrac, 14);
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.strokeRect((cw-barW)/2, ch-48, barW, 14);
+
+    // XP bar
+    const xpFrac = clamp(local.xp / local.xpToLevel, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect((cw-barW)/2, ch-28, barW, 10);
+    ctx.fillStyle = '#7c3aed'; ctx.fillRect((cw-barW)/2, ch-28, barW * xpFrac, 10);
+  }
+
+  function drawBot(b, color, name, isLocal){
+    const x = b.x, y = b.y;
+    // shadow
+    ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.ellipse(x, y+8, 28, 10, 0,0,Math.PI*2); ctx.fill();
+    // body
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(b.angle || 0);
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-20,-16,40,32,6) : ctx.fillRect(-20,-16,40,32);
+    ctx.fill();
+    // turret indicator
+    ctx.fillStyle = '#071427';
+    ctx.fillRect(10,-6,12,12);
+    ctx.restore();
+    // name
+    ctx.fillStyle = '#e6eef8';
+    ctx.font = '12px Inter, system-ui';
+    ctx.textAlign = 'center'; ctx.fillText(name || '', x, y-26);
+    // hp bar
+    const hp = b.hp !== undefined ? b.hp : b.maxHp || 100;
+    const max = b.maxHp || 100;
+    const frac = clamp(hp/max,0,1);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x-28, y+18, 56, 6);
+    ctx.fillStyle = frac>0.5 ? '#10b981' : (frac>0.2? '#f59e0b':'#ef4444');
+    ctx.fillRect(x-28, y+18, 56*frac, 6);
+  }
+
+  // polyfill for roundRect if not supported
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      if(typeof r === 'undefined') r = 6;
+      this.beginPath();
+      this.moveTo(x+r,y);
+      this.arcTo(x+w,y,x+w,y+h,r);
+      this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);
+      this.arcTo(x,y,x+w,y,r);
+      this.closePath();
+    };
+  }
+
+  // main loop
+  function loop(now){
+    const dt = Math.min(40, now - lastTick) / 16.666; // normalized to ~60fps
+    updatePhysics(dt);
+    draw();
+    lastTick = now;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // responsive canvas resizing
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    // keep internal resolution high for crispness but constrained
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.max(800, Math.floor(rect.width * scale));
+    canvas.height = Math.max(450, Math.floor(rect.height * scale));
+    cw = canvas.width; ch = canvas.height;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // initial UI values
+  applyUpgrades();
+  updateHUD();
+  previewStats(selectedBot);
+
+  // optional: keep updating local state by server snapshots
+  setInterval(()=> {
+    // update local copy of server players if available
+    if(socket && connected){
+      socket.emit('requestState');
+    }
+  }, 1000);
+
+  // spawn initial player after menu closed manually in demo if user wants auto
+  // spawnLocal();
+
+  </script>
+
+  <!-- load socket.io client script (will 404 if no server, harmless) -->
+  <script src="/socket.io/socket.io.js"></script>
 </body>
 </html>

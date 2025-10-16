@@ -1,95 +1,173 @@
+// server.js
+// Simple Node + Express + Socket.IO server for BattleBots.io demo.
+// Usage: npm install express socket.io
+//        node server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, { /*cors: { origin: "*" }*/ });
 
-app.use(express.static('public'));
+const PORT = process.env.PORT || 3000;
 
-let players = {};
-let bullets = [];
-let bots = {};
+app.use(express.static(__dirname)); // serve index.html if requested
 
-const tankTypes = {
-  Tank: { speed: 3, health: 120, damage: 12, color:'#0ff' },
-  Rammer: { speed: 5, health: 80, damage: 8, color:'#f0f' },
-  Sniper: { speed: 2.5, health: 90, damage: 25, color:'#ff0' }
-};
+// game state
+const players = {}; // socketId -> {id,x,y,angle,hp,name,kills,deaths,score,coins,lastSeen}
+const bullets = []; // kept minimal on server; clients handle rendering
+const leaderboard = [];
 
-function spawnBots() {
-  for(let i=0;i<6;i++){
-    bots['bot'+i] = {id:'bot'+i, x:Math.random()*800+100, y:Math.random()*600+100, health:100, color:'#f00'};
-  }
+function updateLeaderboard(){
+  const list = Object.values(players).sort((a,b)=> (b.score||0) - (a.score||0)).slice(0,8);
+  // update global leaderboard snapshot
+  return list.map(p => ({id:p.id, name:p.name, score:p.score||0}));
 }
-spawnBots();
 
-setInterval(()=>{
-  // Move bullets & check collisions
-  bullets.forEach((b,i)=>{
-    b.x += b.vx;
-    b.y += b.vy;
-    for(const id in players){
-      const p = players[id];
-      if(Math.hypot(b.x-p.x,b.y-p.y)<20){
-        p.health -= b.damage;
-        if(p.health <= 0) { p.health=0; p.score=0; }
-        bullets.splice(i,1); break;
-      }
+io.on('connection', socket => {
+  console.log('conn', socket.id);
+
+  // create a default player entry
+  players[socket.id] = {
+    id: socket.id,
+    x: 400 + Math.random()*200,
+    y: 200 + Math.random()*200,
+    angle: 0,
+    hp: 100,
+    maxHp: 100,
+    name: 'Player_'+socket.id.substr(0,4),
+    kills: 0, deaths: 0, score: 0, coins: 0,
+    lastSeen: Date.now()
+  };
+
+  // initial broadcast
+  io.emit('state', { players, bullets, leaderboard: updateLeaderboard() });
+
+  socket.on('disconnect', () => {
+    console.log('disc', socket.id);
+    delete players[socket.id];
+    io.emit('state', { players, bullets, leaderboard: updateLeaderboard() });
+  });
+
+  socket.on('playerReady', (data) => {
+    // store chosen bot or upgrades (persist minimal)
+    if(players[socket.id]){
+      players[socket.id].bot = data.bot;
+      players[socket.id].upgrades = data.upgrades;
     }
   });
 
-  // Bot AI
-  for(const id in bots){
-    const b = bots[id];
-    let nearest=null, dist=Infinity;
-    for(const pid in players){
-      const p = players[pid];
-      const d = Math.hypot(p.x-b.x,p.y-b.y);
-      if(d<dist){dist=d; nearest=p;}
+  socket.on('spawn', (data) => {
+    if(players[socket.id]){
+      players[socket.id].x = data.x||players[socket.id].x;
+      players[socket.id].y = data.y||players[socket.id].y;
+      players[socket.id].hp = players[socket.id].maxHp || 100;
+      players[socket.id].lastSeen = Date.now();
     }
-    if(nearest){
-      const dx = nearest.x-b.x;
-      const dy = nearest.y-b.y;
-      const len = Math.hypot(dx,dy);
-      b.x += (dx/len)*1.2;
-      b.y += (dy/len)*1.2;
+  });
+
+  socket.on('input', (payload) => {
+    if(players[socket.id]){
+      players[socket.id].x = payload.x || players[socket.id].x;
+      players[socket.id].y = payload.y || players[socket.id].y;
+      players[socket.id].angle = payload.angle || players[socket.id].angle;
+      players[socket.id].hp = payload.hp !== undefined ? payload.hp : players[socket.id].hp;
+      players[socket.id].name = payload.name || players[socket.id].name;
+      players[socket.id].lastSeen = Date.now();
     }
-  }
+  });
 
-  io.emit('currentState',{players,bots,bullets});
-},1000/60);
-
-io.on('connection',socket=>{
-  socket.on('joinGame',data=>{
-    players[socket.id] = {
-      id: socket.id,
-      x: 400+Math.random()*200,
-      y: 300+Math.random()*200,
-      type: data.tankType,
-      health: tankTypes[data.tankType].health,
-      color: tankTypes[data.tankType].color,
-      ammo:100,
-      score:0
+  socket.on('shoot', (b) => {
+    // server-register bullet minimally for collision checks
+    const bullet = {
+      id: b.id || ('s'+Date.now()+Math.random()),
+      x: b.x, y: b.y, vx: b.vx, vy: b.vy, owner: socket.id, dmg: b.dmg || 8, created: Date.now()
     };
+    bullets.push(bullet);
+    // limit bullets length
+    if(bullets.length > 500) bullets.shift();
   });
 
-  socket.on('move',data=>{
-    const p = players[socket.id]; if(!p) return;
-    const speed = tankTypes[p.type].speed;
-    p.x += data.dx*speed;
-    p.y += data.dy*speed;
-    io.emit('playerMove',{id:socket.id,x:p.x,y:p.y});
+  socket.on('died', (payload) => {
+    // payload: {victim, killer}
+    const victim = players[payload.victim];
+    const killer = players[payload.killer];
+    if(victim) {
+      victim.deaths = (victim.deaths||0) + 1;
+      victim.hp = 0;
+    }
+    if(killer){
+      killer.kills = (killer.kills||0) + 1;
+      killer.score = (killer.score||0) + 10;
+      killer.coins = (killer.coins||0) + 5;
+      // notify everyone of kill event
+      io.emit('event', {type:'killed', killer: killer.id, victim: victim ? victim.id : payload.victim, score: 10, coins: 5, xp: 20});
+    }
   });
 
-  socket.on('shoot',data=>{
-    const p = players[socket.id]; if(!p) return;
-    const angle = data.angle;
-    bullets.push({x:p.x,y:p.y,vx:Math.cos(angle)*12,vy:Math.sin(angle)*12,damage:tankTypes[p.type].damage});
+  socket.on('buyUpgrade', (payload) => {
+    // optional server-side validation
+    // in demo, we don't strictly validate
   });
 
-  socket.on('disconnect',()=>{ delete players[socket.id]; io.emit('playerLeft',socket.id); });
+  socket.on('pingCheck', (t) => {
+    socket.emit('ping', Date.now() - t);
+  });
+
 });
 
-server.listen(3000,()=>console.log('Server running on port 3000'));
+// Server-side game loop (light): check bullet collisions with players
+setInterval(()=> {
+  // move bullets
+  const now = Date.now();
+  for(let i=bullets.length-1;i>=0;i--){
+    const b = bullets[i];
+    // integrate
+    b.x += b.vx * 0.016 * 60; // normalized
+    b.y += b.vy * 0.016 * 60;
+    // expire old bullets
+    if(now - b.created > 8000) { bullets.splice(i,1); continue; }
+    // check collisions with players
+    for(const id in players){
+      const p = players[id];
+      if(id === b.owner) continue; // no friendly fire for owner
+      const dx = p.x - b.x, dy = p.y - b.y;
+      const dist = Math.hypot(dx,dy);
+      if(dist < 18){
+        p.hp = (p.hp || 100) - (b.dmg || 8);
+        if(p.hp <= 0){
+          p.hp = 0;
+          p.deaths = (p.deaths||0) + 1;
+          // award killer
+          const killer = players[b.owner];
+          if(killer){
+            killer.kills = (killer.kills||0) + 1;
+            killer.score = (killer.score||0) + 10;
+            killer.coins = (killer.coins||0) + 5;
+            io.emit('event', {type:'killed', killer: killer.id, victim: p.id, score:10, coins:5, xp:20});
+          } else {
+            io.emit('event', {type:'killed', killer: null, victim: p.id});
+          }
+        }
+        // remove bullet
+        bullets.splice(i,1);
+        break;
+      }
+    }
+  }
+
+  // expire inactive players
+  const threshold = Date.now() - 1000*60*5;
+  for(const id in players){
+    if(players[id].lastSeen < threshold){ delete players[id]; }
+  }
+
+  // broadcast main state to clients
+  io.emit('state', { players, bullets: bullets.slice(-100), leaderboard: updateLeaderboard() });
+
+}, 1000/15);
+
+server.listen(PORT, () => {
+  console.log('Server listening on', PORT);
+});
